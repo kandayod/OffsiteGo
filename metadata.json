@@ -1,0 +1,6 @@
+{
+  "name": "ระบบจัดการทำงานนอกสถานที่",
+  "description": "ระบบขออนุมัติทำงานนอกสถานที่ บันทึกชั่วโมงเวลาทำงานผ่านระบบ GPS รายงานสรุปผลรายเดือน และระบบวิเคราะห์ข้อมูล Dashboard สำหรับหัวหน้างาน",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
