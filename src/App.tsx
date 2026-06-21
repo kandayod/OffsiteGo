@@ -834,58 +834,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Simulated preset quick login list */}
-            <div className="space-y-2.5">
-              <h4 className="text-[10px] uppercase font-bold tracking-wider text-earth-dark/70 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-earth-primary animate-pulse" />
-                <span>บัญชีจำลองเตรียมไว้สำหรับการทดสอบ (Quick Login Roster)</span>
-              </h4>
-              
-              <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
-                {employees
-                  .filter(emp => {
-                    const isManager = emp.position === 'manager' || emp.id === 'KK0031';
-                    return loginTab === 'manager' ? isManager : !isManager;
-                  })
-                  .map(emp => (
-                    <button
-                      key={emp.id}
-                      type="button"
-                      onClick={() => handleQuickLogin(emp)}
-                      className="text-left w-full bg-[#FAF9F6] hover:bg-white active:bg-[#F2EFE9] border border-earth-border/60 hover:border-earth-primary rounded-2xl p-2.5 flex items-center justify-between gap-3 transition cursor-pointer group shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold font-sans shadow-inner" style={{ backgroundColor: emp.avatarColor || '#8BA888' }}>
-                          {emp.name.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-earth-dark text-xs">{emp.name}</div>
-                          <div className="text-[10px] text-earth-text/70 font-medium font-sans flex items-center gap-1">
-                            <span className="font-mono font-bold text-earth-primary">{emp.id}</span> • {emp.role.split(' (')[0]}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-black bg-white group-hover:bg-earth-primary group-hover:text-white px-2 py-1 rounded-lg border border-earth-border/50 text-earth-text/85 shadow-3xs transition-all pointer-events-none">
-                        เข้าใช้งาน 🚪
-                      </span>
-                    </button>
-                  ))}
-                {employees.filter(emp => {
-                  const isManager = emp.position === 'manager' || emp.id === 'KK0031';
-                  return loginTab === 'manager' ? isManager : !isManager;
-                }).length === 0 && (
-                  <div className="text-center p-4 bg-gray-50 border border-dashed rounded-xl text-xs text-earth-text/60 font-semibold">
-                    ไม่มีบัญชีจำลองในกลุ่มนี้ กรุณาสร้างบัญชีกลุ่มปฏิบัติงานนี้ก่อน
-                  </div>
-                )}
-              </div>
-            </div>
 
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-earth-border/50"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-earth-text/45 uppercase font-black tracking-widest font-sans">หรือพิมพ์รหัสเข้าใช้งานกรณีระบุเอง</span>
-              <div className="flex-grow border-t border-earth-border/50"></div>
-            </div>
 
             {/* Manual Form */}
             <form onSubmit={handleLoginSubmit} className="space-y-4">
