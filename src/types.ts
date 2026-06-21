@@ -57,7 +57,7 @@ export interface Employee {
   department: string;
   avatarColor: string;
   workGroup?: 'regular' | 'adhoc'; // regular = ปฏิบัติงานประจำ (ต้องยื่นแผนล่วงหน้า), adhoc = ปฏิบัติงานรายครั้ง (อนุมัติรายครั้งปกติ)
-  position?: 'employee' | 'manager'; // employee = พนักงาน, manager = หัวหน้างาน
+  position?: 'employee' | 'manager' | 'admin'; // employee = พนักงาน, manager = หัวหน้างาน, admin = ผู้ดูระบบ / ผู้คุมระบบ
   approverId?: string; // รหัสหัวหน้างานผู้อนุมัติ
   approverName?: string; // สายอนุมัติ
   password?: string; // Password for security login

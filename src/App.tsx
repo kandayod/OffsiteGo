@@ -69,17 +69,65 @@ export default function App() {
 
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem('offsite_employees');
+    let loaded: Employee[] = [];
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try { 
+        loaded = JSON.parse(saved); 
+      } catch (e) { 
+        console.error(e); 
+      }
     }
+    
+    if (loaded && loaded.length > 0) {
+      // Ensure the 'admin' user is always included for safety
+      const hasAdmin = loaded.some(emp => emp.id === 'admin');
+      if (!hasAdmin) {
+        const adminMock = MOCK_EMPLOYEES.find(emp => emp.id === 'admin') || {
+          id: 'admin',
+          name: 'ผู้ดูแลระบบและคุมระบบสูงสุด',
+          role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator)',
+          email: 'systech.kk@kidzandkitz.co.th',
+          department: 'แผนกไอทีกลาง (IT Administration)',
+          avatarColor: '#EF4444',
+          workGroup: 'adhoc',
+          position: 'admin' as const,
+          password: '1234'
+        };
+        loaded.push(adminMock);
+      }
+      // Ensure the 'Kanda' user is always included for safety
+      const hasKanda = loaded.some(emp => emp.id === 'Kanda');
+      if (!hasKanda) {
+        const kandaMock = MOCK_EMPLOYEES.find(emp => emp.id === 'Kanda') || {
+          id: 'Kanda',
+          name: 'Kanda',
+          role: 'ผู้จัดการฝ่ายปฏิบัติการนอกสถานที่ (Operations Manager)',
+          email: 'kanda.manager@kidzandkitz.co.th',
+          department: 'ฝ่ายบริหารงานบริการทั่วไป',
+          avatarColor: '#AD1457',
+          workGroup: 'adhoc',
+          position: 'manager' as const,
+          password: '1234'
+        };
+        loaded.push(kandaMock);
+      }
+      return loaded;
+    }
+
     // Initialize mock employees with default groups
-    return MOCK_EMPLOYEES.map((emp, idx) => ({
-      ...emp,
-      workGroup: idx === 0 || idx === 2 ? 'regular' : 'adhoc', // EMP001 (Regular), EMP002 (Adhoc), EMP003 (Regular)
-      position: emp.id === 'KK0031' ? 'manager' : 'employee',
-      approverId: emp.id === 'KK0031' ? undefined : 'KK0031',
-      approverName: emp.id === 'KK0031' ? undefined : 'กานดา ยอดรัก (ผู้จัดการ)'
-    }));
+    return MOCK_EMPLOYEES.map((emp, idx) => {
+      let pos: 'employee' | 'manager' | 'admin' = 'employee';
+      if (emp.id === 'KK0031' || emp.id === 'Kanda') pos = 'manager';
+      else if (emp.id === 'admin') pos = 'admin';
+
+      return {
+        ...emp,
+        workGroup: idx === 0 || idx === 2 ? 'regular' : 'adhoc', // EMP001 (Regular), EMP002 (Adhoc), EMP003 (Regular)
+        position: pos,
+        approverId: (pos === 'manager' || pos === 'admin') ? undefined : 'KK0031',
+        approverName: (pos === 'manager' || pos === 'admin') ? undefined : 'กานดา ยอดรัก (ผู้จัดการ)'
+      };
+    });
   });
 
   useEffect(() => {
@@ -165,11 +213,12 @@ export default function App() {
   const [changePasswordError, setChangePasswordError] = useState<string>('');
 
   // Roles & Simulator State
-  const [activeRole, setActiveRole] = useState<'employee' | 'manager'>(() => {
+  const [activeRole, setActiveRole] = useState<'employee' | 'manager' | 'admin'>(() => {
     const saved = localStorage.getItem('offsite_logged_in_user');
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Employee;
+        if (parsed.position === 'admin') return 'admin';
         return parsed.position === 'manager' || parsed.id === 'KK0031' ? 'manager' : 'employee';
       } catch (e) {
         return 'employee';
@@ -177,7 +226,7 @@ export default function App() {
     }
     return 'employee'; // default is employee view
   });
-  const [employeeActiveTab, setEmployeeActiveTab] = useState<'daily' | 'planning'>('daily');
+  const [employeeActiveTab, setEmployeeActiveTab] = useState<'daily' | 'planning' | 'calendar'>('daily');
   const [simulatedEmployeeId, setSimulatedEmployeeId] = useState<string>(() => {
     const saved = localStorage.getItem('offsite_logged_in_user');
     if (saved) {
@@ -194,7 +243,11 @@ export default function App() {
   useEffect(() => {
     if (loggedInUser) {
       localStorage.setItem('offsite_logged_in_user', JSON.stringify(loggedInUser));
-      setActiveRole(loggedInUser.position === 'manager' || loggedInUser.id === 'KK0031' ? 'manager' : 'employee');
+      if (loggedInUser.position === 'admin') {
+        setActiveRole('admin');
+      } else {
+        setActiveRole(loggedInUser.position === 'manager' || loggedInUser.id === 'KK0031' ? 'manager' : 'employee');
+      }
       setSimulatedEmployeeId(loggedInUser.id);
     } else {
       localStorage.removeItem('offsite_logged_in_user');
@@ -205,7 +258,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Login Page States
-  const [loginTab, setLoginTab] = useState<'employee' | 'manager'>('employee');
+  const [loginTab, setLoginTab] = useState<'employee' | 'manager' | 'admin'>('employee');
   const [inputUserId, setInputUserId] = useState<string>('');
   const [inputPassword, setInputPassword] = useState<string>('');
   const [loginError, setLoginError] = useState<string>('');
@@ -242,13 +295,17 @@ export default function App() {
     }
 
     // Verify correct role partition alignment:
-    const isEmpManager = match.position === 'manager' || match.id === 'KK0031';
-    if (loginTab === 'manager' && !isEmpManager) {
-      setLoginError('บัญชีนี้ไม่มีสิทธิ์ระดับหัวหน้างาน โปรดล็อกอินผ่านแท็บพนักงานปฏิบัติการ');
+    const userPos = match.position || 'employee';
+    if (loginTab === 'admin' && userPos !== 'admin') {
+      setLoginError('บัญชีนี้ไม่มีสิทธิ์ระดับผู้คุมระบบ (Administrator) โปรดเข้าใช้งานที่แท็บช่องทางอื่น');
       return;
     }
-    if (loginTab === 'employee' && isEmpManager) {
-      setLoginError('บัญชีนี้มีสิทธิ์ระดับหัวหน้างาน โปรดเข้าใช้งานที่แท็บช่องทางหัวหน้างาน');
+    if (loginTab === 'manager' && userPos !== 'manager') {
+      setLoginError('บัญชีนี้ไม่มีสิทธิ์ระดับหัวหน้างาน/ผู้จัดการ โปรดเข้าใช้งานที่แท็บช่องทางอื่น');
+      return;
+    }
+    if (loginTab === 'employee' && userPos !== 'employee') {
+      setLoginError('บัญชีนี้ไม่ใช่พนักงานปฏิบัติการทั่วไป โปรดเข้าใช้งานผ่านช่องทางหัวหน้างานหรือผู้คุมระบบ');
       return;
     }
 
@@ -299,12 +356,29 @@ export default function App() {
   const [newEmpEmail, setNewEmpEmail] = useState<string>('');
   const [newEmpRole, setNewEmpRole] = useState<string>('เจ้าหน้าที่ประสานงานนอกพื้นที่');
   const [newEmpDept, setNewEmpDept] = useState<string>('ฝ่ายส่งเสริมกิจกรรมการตลาด');
-  const [newEmpPosition, setNewEmpPosition] = useState<'employee' | 'manager'>('employee');
+  const [newEmpPosition, setNewEmpPosition] = useState<'employee' | 'manager' | 'admin'>('employee');
   const [newEmpWorkGroup, setNewEmpWorkGroup] = useState<'regular' | 'adhoc'>('adhoc');
   const [selectedApproverId, setSelectedApproverId] = useState<string>('KK0031');
   const [customApproverName, setCustomApproverName] = useState<string>('');
   const [newEmpPassword, setNewEmpPassword] = useState<string>('1234');
   const [newEmpSuccessMsg, setNewEmpSuccessMsg] = useState<string>('');
+
+  // Admin User Editing States
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [editEmpName, setEditEmpName] = useState<string>('');
+  const [editEmpEmail, setEditEmpEmail] = useState<string>('');
+  const [editEmpRole, setEditEmpRole] = useState<string>('');
+  const [editEmpDept, setEditEmpDept] = useState<string>('');
+  const [editEmpPosition, setEditEmpPosition] = useState<'employee' | 'manager' | 'admin'>('employee');
+  const [editEmpWorkGroup, setEditEmpWorkGroup] = useState<'regular' | 'adhoc'>('adhoc');
+  const [editSelectedApproverId, setEditSelectedApproverId] = useState<string>('KK0031');
+  const [editCustomApproverName, setEditCustomApproverName] = useState<string>('');
+  const [editEmpPassword, setEditEmpPassword] = useState<string>('1234');
+  const [adminUpdateSuccess, setAdminUpdateSuccess] = useState<string>('');
+  const [adminUpdateError, setAdminUpdateError] = useState<string>('');
+  const [adminSearchQuery, setAdminSearchQuery] = useState<string>('');
+  const [adminRoleFilter, setAdminRoleFilter] = useState<'all' | 'employee' | 'manager' | 'admin'>('all');
+  const [adminActiveTab, setAdminActiveTab] = useState<'dashboard' | 'users'>('dashboard');
 
   const handleCreateEmployee = (e: FormEvent) => {
     e.preventDefault();
@@ -359,6 +433,79 @@ export default function App() {
     setNewEmpName('');
     setNewEmpEmail('');
     setNewEmpPassword('1234');
+  };
+
+  const handleUpdateEmployee = (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployeeId) return;
+
+    if (!editEmpName.trim() || !editEmpEmail.trim()) {
+      setAdminUpdateError('กรุณากรอกข้อมูลพนักงานให้ครบถ้วน');
+      return;
+    }
+
+    const parentApprover = employees.find(emp => emp.id === editSelectedApproverId);
+    let finalApproverName: string | undefined = undefined;
+    let finalApproverId: string | undefined = undefined;
+
+    if (editEmpPosition === 'employee') {
+      if (editSelectedApproverId === 'custom') {
+        finalApproverName = editCustomApproverName.trim() || 'ไม่ได้ระบุหัวหน้างานสายตรง';
+      } else if (parentApprover) {
+        finalApproverName = `${parentApprover.name} (${parentApprover.role.split(' (')[0]})`;
+        finalApproverId = parentApprover.id;
+      }
+    }
+
+    setEmployees(prev => prev.map(emp => {
+      if (emp.id === editingEmployeeId) {
+        return {
+          ...emp,
+          name: editEmpName.trim(),
+          role: editEmpRole.trim(),
+          email: editEmpEmail.trim(),
+          department: editEmpDept.trim(),
+          position: editEmpPosition,
+          workGroup: editEmpWorkGroup,
+          approverId: finalApproverId,
+          approverName: finalApproverName,
+          password: editEmpPassword.trim() || '1234'
+        };
+      }
+      return emp;
+    }));
+
+    setAdminUpdateSuccess('อัปเดตข้อมูลพนักงานเรียบร้อยแล้ว!');
+    setEditingEmployeeId(null);
+  };
+
+  const handleDeleteEmployee = (empId: string) => {
+    if (empId === loggedInUser?.id) {
+      alert('คุณไม่สามารถลบบัญชีผู้คุมระบบที่คุณกำลังเข้าใช้งานอยู่ได้!');
+      return;
+    }
+    const target = employees.find(e => e.id === empId);
+    if (!target) return;
+
+    if (window.confirm(`⚠️ คุณแน่ใจหรือไม่ว่าต้องการ "ลบบัญชี" ${target.name} (${target.id}) ออกจากระบบโดยถาวร?\nการดำเนินการนี้ไม่สามารถย้อนกลับได้`)) {
+      setEmployees(prev => prev.filter(e => e.id !== empId));
+      alert(`ลบบัญชี ${target.name} เรียบร้อยแล้ว`);
+    }
+  };
+
+  const startEditingEmployee = (emp: Employee) => {
+    setEditingEmployeeId(emp.id);
+    setEditEmpName(emp.name);
+    setEditEmpRole(emp.role);
+    setEditEmpEmail(emp.email);
+    setEditEmpDept(emp.department);
+    setEditEmpPosition(emp.position || 'employee');
+    setEditEmpWorkGroup(emp.workGroup || 'adhoc');
+    setEditSelectedApproverId(emp.approverId || 'KK0031');
+    setEditCustomApproverName(emp.approverName || '');
+    setEditEmpPassword(emp.password || '1234');
+    setAdminUpdateSuccess('');
+    setAdminUpdateError('');
   };
 
   const handleChangePasswordSubmit = (e: FormEvent) => {
@@ -801,21 +948,21 @@ export default function App() {
           <div className="bg-white rounded-3xl border border-earth-border p-6 md:p-8 shadow-md hover:shadow-lg transition-all space-y-6">
             
             {/* Tabs for role selection */}
-            <div className="grid grid-cols-2 gap-2 bg-[#F2EFE9] p-1.5 rounded-2xl border border-earth-border/40">
+            <div className="grid grid-cols-3 gap-1 bg-[#F2EFE9] p-1 rounded-2xl border border-earth-border/40">
               <button
                 type="button"
                 onClick={() => {
                   setLoginTab('employee');
                   setLoginError('');
                 }}
-                className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                className={`py-2 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer select-none ${
                   loginTab === 'employee'
                     ? 'bg-earth-primary text-white shadow-xs'
                     : 'text-earth-text/80 hover:bg-white/30'
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
-                <span>พนักงานปฏิบัติงาน</span>
+                <User className="w-3.5 h-3.5 shrink-0" />
+                <span>พนักงาน</span>
               </button>
               <button
                 type="button"
@@ -823,14 +970,29 @@ export default function App() {
                   setLoginTab('manager');
                   setLoginError('');
                 }}
-                className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                className={`py-2 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer select-none ${
                   loginTab === 'manager'
                     ? 'bg-[#D27D59] text-white shadow-xs'
                     : 'text-earth-text/80 hover:bg-white/30'
                 }`}
               >
-                <MonitorCheck className="w-3.5 h-3.5" />
-                <span>หัวหน้างาน / คุมระบบ</span>
+                <MonitorCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>หัวหน้างาน</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginTab('admin');
+                  setLoginError('');
+                }}
+                className={`py-2 px-1 rounded-xl text-[10px] sm:text-xs font-black transition-all flex flex-col sm:flex-row items-center justify-center gap-1 cursor-pointer select-none ${
+                  loginTab === 'admin'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-earth-text/80 hover:bg-white/30'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                <span>ผู้คุมระบบ</span>
               </button>
             </div>
 
@@ -936,9 +1098,13 @@ export default function App() {
               <div className="text-[9px] text-earth-text/75 font-semibold flex items-center gap-1">
                 <span className="font-mono font-bold text-earth-primary">{loggedInUser?.id}</span> • 
                 <span className={`px-1 rounded-sm text-[8px] font-black ${
-                  activeRole === 'manager' ? 'bg-orange-100 text-orange-850' : 'bg-blue-100 text-blue-850'
+                  activeRole === 'admin' 
+                    ? 'bg-amber-100 text-amber-850' 
+                    : activeRole === 'manager' 
+                      ? 'bg-orange-100 text-orange-850' 
+                      : 'bg-blue-100 text-blue-850'
                 }`}>
-                  {activeRole === 'manager' ? 'ผู้จัดการ' : 'พนักงาน'}
+                  {activeRole === 'admin' ? 'ผู้ดูแลระบบ' : activeRole === 'manager' ? 'ผู้จัดการ' : 'พนักงาน'}
                 </span>
               </div>
             </div>
@@ -1067,7 +1233,8 @@ export default function App() {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* PART 1: EMPLOYEE GROUPS ASSIGNER (5 columns) */}
+                {/* PART 1: EMPLOYEE GROUPS ASSIGNER (DISABLED FOR MANAGERS) */}
+                {false && (
                 <div className="lg:col-span-5 space-y-4">
                   <h4 className="font-bold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <Shuffle className="w-4 h-4 text-earth-primary" />
@@ -1339,9 +1506,10 @@ export default function App() {
                     </form>
                   </div>
                 </div>
+                )}
 
-                {/* PART 2: PLAN APPROVALS DESK (7 columns) */}
-                <div className="lg:col-span-7 space-y-4">
+                {/* PART 2: PLAN APPROVALS DESK (Expanded full width) */}
+                <div className="lg:col-span-12 space-y-4">
                   <h4 className="font-bold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <ClipboardList className="w-4 h-4 text-earth-primary" />
                     <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ ({plans.filter(p => p.status === 'pending').length} ฉบับเสนอล่าสุด)</span>
@@ -1682,11 +1850,1006 @@ export default function App() {
           </div>
         )}
 
+        {/* --- 1.5. ADMIN VIEW (ผู้ควบคุมระบบ: USER MANAGEMENT & INITIALIZATION DESK) --- */}
+        {activeRole === 'admin' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Admin Header Context Banner */}
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 px-2.5 bg-amber-600 text-white font-extrabold text-[10px] tracking-wider rounded-md uppercase">SYSTEM ADMINISTRATION</span>
+                  <h3 className="font-extrabold text-earth-dark text-lg md:text-xl font-sans">ศูนย์ควบคุมและบริหารสิทธิ์ผู้ใช้งานระบบ</h3>
+                </div>
+                <p className="text-xs text-earth-text/85">
+                  ยินดีต้อนรับผู้ดูแลระบบ คุณสามารถสร้างบัญชีผู้ใช้งานพนักงาน/หัวหน้างาน, กำหนดตำแหน่งพิกัดกลุ่มงานพิเศษ, แก้ไขรหัสผ่านพนักงาน, หรือลบบัญชีที่พ้นสภาพงานได้แบบเรียลไทม์
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-amber-100/50 border border-amber-300/60 px-3.5 py-1.5 rounded-2xl shrink-0">
+                <ShieldCheck className="w-4 h-4 text-amber-700 animate-bounce" />
+                <span className="text-amber-800 text-xs font-black">สิทธิ์ระดับ: ผู้ควบคุมระบบสูงสุด</span>
+              </div>
+            </div>
+
+            {/* HIGH-CONTRAST TAB NAVIGATION */}
+            <div className="flex bg-[#FCFAF7] border border-earth-border p-1 rounded-2xl w-full max-w-xl shadow-3xs">
+              <button
+                type="button"
+                onClick={() => setAdminActiveTab('dashboard')}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer select-none text-center flex items-center justify-center gap-2 ${
+                  adminActiveTab === 'dashboard'
+                    ? 'bg-earth-primary text-white shadow-2xs'
+                    : 'text-earth-dark hover:bg-earth-sidebar'
+                }`}
+              >
+                <ClipboardList className="w-4 h-4" />
+                <span>📊 แดชบอร์ดสรุปแผนงาน & อนุมัติพิกัด</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminActiveTab('users')}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-150 cursor-pointer select-none text-center flex items-center justify-center gap-2 ${
+                  adminActiveTab === 'users'
+                    ? 'bg-earth-primary text-white shadow-2xs'
+                    : 'text-earth-dark hover:bg-earth-sidebar'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>👥 จัดการ & สร้างสิทธิ์พนักงาน</span>
+              </button>
+            </div>
+
+            {/* TAB CONTENT 1: OPERATIONAL DASHBOARD (Same as supervisor view) */}
+            {adminActiveTab === 'dashboard' && (
+              <div className="space-y-8 animate-fadeIn">
+                {/* Quick Metrics Panels */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-earth-text tracking-wider">ภารกิจนอกสถานที่ทั้งหมด</span>
+                    <p className="text-2xl font-black text-earth-dark font-mono mt-2">{dashboardStats.total} <span className="text-xs font-normal text-earth-text/70">ครั้ง</span></p>
+                    <div className="w-full bg-earth-border/40 h-1 mt-2.5 rounded-full overflow-hidden">
+                      <div className="h-full bg-earth-primary rounded-full" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-earth-secondary tracking-wider">รออนุมัติคำขอ</span>
+                    <p className="text-2xl font-black text-earth-secondary font-mono mt-2">{dashboardStats.pending} <span className="text-xs font-normal text-earth-text/70">รายการ</span></p>
+                    <div className="w-full bg-earth-border/40 h-1 mt-2.5 rounded-full overflow-hidden">
+                      <div className="h-full bg-earth-secondary rounded-full" style={{ width: `${dashboardStats.total > 0 ? (dashboardStats.pending / dashboardStats.total) * 105 : 0}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-teal-800 tracking-wider">อนุมัติลงพื้นที่แล้ว</span>
+                    <p className="text-2xl font-black text-teal-700 font-mono mt-2">{dashboardStats.approved} <span className="text-xs font-normal text-earth-text/70">ครั้ง</span></p>
+                    <div className="w-full bg-earth-border/40 h-1 mt-2.5 rounded-full overflow-hidden">
+                      <div className="h-full bg-teal-600 rounded-full" style={{ width: `${dashboardStats.total > 0 ? (dashboardStats.approved / dashboardStats.total) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-[#2E5E2A] tracking-wider">เช็คอินพิกัดสำเร็จ</span>
+                    <p className="text-2xl font-black text-[#2E5E2A] font-mono mt-2">{dashboardStats.checkedIn} <span className="text-xs font-normal text-earth-text/70">แห่ง</span></p>
+                    <div className="w-full bg-earth-border/40 h-1 mt-2.5 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${dashboardStats.approved > 0 ? (dashboardStats.checkedIn / dashboardStats.approved) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">รายงานเสร็จ / ปัญหาคงค้าง</span>
+                    <p className="text-xl font-black text-earth-dark font-mono mt-2">
+                      {dashboardStats.completed}/{dashboardStats.unresolvedIssues} <span className="text-xs font-normal text-earth-text/70">เคส</span>
+                    </p>
+                    <div className="w-full bg-earth-border/40 h-1 mt-2.5 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${dashboardStats.totalIssues > 0 ? (dashboardStats.unresolvedIssues / dashboardStats.totalIssues) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* MANAGER WORKFORCE CALENDAR VIEW */}
+                <ManagerCalendar 
+                  requests={requests}
+                  selectedMonth={selectedMonth}
+                  employees={employees}
+                  plans={plans}
+                />
+
+                {/* PLAN APPROVALS DESK */}
+                <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                  <h4 className="font-bold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-earth-border pb-3">
+                    <ClipboardList className="w-4 h-4 text-earth-primary" />
+                    <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ (ผู้คุมระบบอนุมัติร่วม | {plans.filter(p => p.status === 'pending').length} ฉบับเสนอล่าสุด)</span>
+                  </h4>
+
+                  {plans.filter(p => p.status === 'pending').length === 0 ? (
+                    <div className="text-center py-10 text-earth-text/60 border border-dashed border-earth-border rounded-2xl bg-white">
+                      <CheckCircle2 className="w-8 h-8 text-earth-primary/50 mx-auto mb-1.5" />
+                      <p className="text-xs font-bold text-earth-primary">พิจารณาโครงสร้างตารางงานพนักงานเสร็จสิ้นครบถ้วน!</p>
+                      <p className="text-[10px] text-earth-text/80 mt-0.5">แผนล่วงหน้าของพนักงานทั้งหมดได้รับการตรวจสอบสิทธิ์และอนุมัติแล้ว</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                      {plans.filter(p => p.status === 'pending').map(plan => (
+                        <div key={plan.id} className="p-4 rounded-2xl border border-earth-border bg-white space-y-3 shadow-3xs relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-[#8BA888]" />
+                          <div className="flex justify-between items-start pl-1.5">
+                            <div>
+                              <p className="font-bold text-earth-dark text-xs">{plan.title}</p>
+                              <p className="text-[11px] text-earth-text/80">ผู้ยื่นเสนอ: <span className="font-bold text-earth-dark">{plan.employeeName}</span> ({plan.employeeId})</p>
+                              {(() => {
+                                const allConflicts = plan.plannedDates.flatMap(pd => checkDateConflicts(plan.id, plan.employeeId, pd.date, pd.location.name, pd.purpose));
+                                if (allConflicts.length > 0) {
+                                  return (
+                                    <div className="mt-1.5 inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200/60 text-[10px] px-2 py-0.5 rounded-md font-bold">
+                                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                      <span>ตรวจพบการทำงานซ้ำซ้อนกันในระบบ {allConflicts.length} จุด</span>
+                                    </div>
+                                  );
+                                } else {
+                                  return (
+                                    <div className="mt-1.5 inline-flex items-center gap-1 bg-green-50 text-green-800 border border-green-200/40 text-[10px] px-2 py-0.5 rounded-md font-bold">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                                      <span>ไม่พบความขัดแย้งของแผน</span>
+                                    </div>
+                                  );
+                                }
+                              })()}
+                            </div>
+                            <span className="text-[9px] bg-earth-primary/15 text-earth-primary border border-earth-primary/20 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
+                              ร่างแผนราย{plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}
+                            </span>
+                          </div>
+
+                          <div className="bg-[#FAF9F6] p-2.5 rounded-xl border border-earth-border/40 space-y-1.5 flex flex-col">
+                            <p className="text-[10px] font-bold text-earth-text border-b border-earth-border pb-1">รายละเอียดหน้างานที่ประสงค์ขอปฏิบัตินอกสถานที่ล่วงหน้า:</p>
+                            <div className="divide-y divide-earth-border/30 max-h-[140px] overflow-y-auto pt-0.5 space-y-1">
+                              {plan.plannedDates.map((pDate, pdIdx) => (
+                                <div key={pdIdx} className="text-[11px] py-1 text-earth-text space-y-0.5">
+                                  <div className="flex justify-between font-mono font-bold text-earth-dark text-[10px]">
+                                    <span>📅 วันที่: {pDate.date.split('-').reverse().join('/')}</span>
+                                    <span className="text-earth-primary">{pDate.startTime} - {pDate.endTime} น.</span>
+                                  </div>
+                                  <p className="font-medium text-earth-dark/95 leading-relaxed text-[10.5px]">
+                                    <span>ที่ตั้งเป้าหมาย: <span className="font-bold text-earth-dark">{pDate.location.name}</span></span>
+                                  </p>
+                                  <p className="italic text-[10px] text-earth-text pl-4">วัตถุประสงค์หลัก: "{pDate.purpose}"</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 text-xs pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const reason = prompt('กรุณาระบุรายละเอียดสาเหตุที่ไม่อนุมัติแผนปฏิบัติงานล่วงหน้าครั้งนี้:', 'รายละเอียดแผนงานซ้ำซ้อนหรือจุดทำงานยังไม่ลงตัว');
+                                if (reason === null) return;
+                                setPlans(prev => prev.map(p => {
+                                  if (p.id === plan.id) {
+                                    return {
+                                      ...p,
+                                      status: 'rejected',
+                                      rejectedReason: reason,
+                                      approvedBy: `${loggedInUser?.name || 'ผู้ดูแลระบบ'} (ฝ่ายคุมระบบ)`,
+                                      approvedAt: new Date().toLocaleDateString('th-TH')
+                                    };
+                                  }
+                                  return p;
+                                }));
+                              }}
+                              className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg border border-rose-200 transition font-bold cursor-pointer text-[10.5px]"
+                            >
+                              🙅‍♂️ ปฏิเสธแผนงาน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPlans(prev => prev.map(p => {
+                                  if (p.id === plan.id) {
+                                    return {
+                                      ...p,
+                                      status: 'approved',
+                                      approvedBy: `${loggedInUser?.name || 'ผู้ดูแลระบบ'} (ฝ่ายคุมระบบ)`,
+                                      approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
+                                    };
+                                  }
+                                  return p;
+                                }));
+                              }}
+                              className="px-4 py-1.5 bg-earth-primary hover:bg-[#799976] text-white rounded-lg transition font-bold cursor-pointer active:scale-95 shadow-2xs text-[10.5px]"
+                            >
+                              🙆‍♂️ อนุมัติแผนล่วงหน้า
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* PENDING APPROVAL REQUESTS */}
+                <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-earth-border pb-3">
+                    <div>
+                      <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                        <ClipboardList className="w-5 h-5 text-earth-primary" />
+                        <span>คำขออนุมัติลงพื้นที่นอกสถานที่ล่าช้า ({requests.filter(r => r.status === 'pending').length} รายการที่รออยู่)</span>
+                      </h3>
+                      <p className="text-xs text-earth-text/80">ผู้ดูแลระบบเข้าตรวจสอบและอนุมัติลงพิกัดทดแทนหัวหน้างานได้โดยตรง</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requests.filter(r => r.status === 'pending').map((req) => (
+                      <div key={req.id} className="p-4 rounded-xl border border-earth-border hover:border-earth-primary/50 bg-[#FBF9F6] transition-all flex flex-col justify-between gap-4 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-earth-sand" />
+                        <div className="space-y-2.5 pl-1.5">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-bold text-earth-dark text-sm">{req.employeeName}</p>
+                              <p className="text-[11px] text-earth-text/80">{req.role}</p>
+                            </div>
+                            <span className="font-mono text-xs text-earth-text bg-white px-2.5 py-1 rounded-lg border border-earth-border shadow-3xs">{req.date}</span>
+                          </div>
+
+                          <div className="space-y-1.5 text-xs text-earth-text bg-white p-3 rounded-xl border border-earth-border/60 shadow-3xs">
+                            <p className="flex items-start gap-1.5">
+                              <MapPin className="w-4 h-4 text-earth-primary mt-0.5 shrink-0" />
+                              <span><span className="font-bold text-earth-dark">จุดเป้าหมายงาน:</span> {req.location.name}</span>
+                            </p>
+                            <p className="flex items-start gap-1.5">
+                              <Clock3 className="w-4 h-4 text-earth-primary mt-0.5 shrink-0" />
+                              <span className="font-mono font-semibold">{req.startTime} น. ถึง {req.endTime} น.</span>
+                            </p>
+                            <p className="mt-2 text-earth-text font-medium border-t border-earth-border/45 pt-1.5">
+                              <span className="font-bold text-earth-text/60 block text-[10px] uppercase">วัตถุประสงค์งาน:</span>
+                              <span className="italic text-earth-dark">"{req.purpose}"</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2.5 pt-1 pr-1 pl-1.5 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => triggerApprove(req.id, false)}
+                            className="bg-[#FCF5F2] hover:bg-[#F2D7CD] text-[#D27D59] border border-earth-secondary/10 font-sans font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition hover:scale-95"
+                          >
+                            <X className="w-4 h-4" />
+                            <span>ปฏิเสธคำขอ</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => triggerApprove(req.id, true)}
+                            className="bg-[#8BA888] hover:bg-[#799976] text-white font-sans font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-xs hover:scale-95 active:scale-90"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>อนุมัติลงพื้นที่</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {requests.filter(r => r.status === 'pending').length === 0 && (
+                      <div className="col-span-1 md:col-span-2 text-center py-10 text-earth-text/60 italic bg-[#FAF8F5] rounded-2xl border border-dashed border-earth-border w-full">
+                        <CheckCircle className="w-8 h-8 text-earth-primary mx-auto mb-2" />
+                        <span>ไม่มีรายการส่งขอลงตราอนุญาตพิกัดในรอบเดือนนี้</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* PROBLEMS & ISSUES TRACKING SYSTEM */}
+                <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-earth-border pb-3">
+                    <div>
+                      <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-earth-secondary animate-pulse" />
+                        <span>รายงานปัญหาและข้อผิดพลาดหน้างานของพนักงาน (Admin Central Resolver)</span>
+                      </h3>
+                      <p className="text-xs text-earth-text/80">ติดตามสถานะความคืบหน้าของปัญหาและแก้ไขพิจารณาจบเคส</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2.5 items-center">
+                      <select
+                        id="admin-issues-employee-filter"
+                        value={dashboardEmployeeFilter}
+                        onChange={(e) => setDashboardEmployeeFilter(e.target.value)}
+                        className="bg-earth-sidebar text-xs border border-earth-border rounded-xl py-1.5 px-3 font-semibold text-earth-dark outline-none cursor-pointer"
+                      >
+                        <option value="">กรองพนักงานทั้งหมด</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        id="admin-issues-status-filter"
+                        value={dashboardIssueStateFilter}
+                        onChange={(e) => setDashboardIssueStateFilter(e.target.value)}
+                        className="bg-earth-sidebar text-xs border border-earth-border rounded-xl py-1.5 px-3 font-semibold text-earth-dark outline-none cursor-pointer"
+                      >
+                        <option value="all">สถานะปัญหา (ทั้งหมด)</option>
+                        <option value="unresolved">ค้างการแก้ไข (Unresolved)</option>
+                        <option value="resolved">ได้รับการแก้ไขแล้ว (Resolved)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-earth-border">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#FAF8F5] text-earth-text uppercase font-bold tracking-wider border-b border-earth-border text-[10px]">
+                          <th className="p-3">วันที่แจ้ง</th>
+                          <th className="p-3">พนักงาน</th>
+                          <th className="p-3">สถานที่จัดงาน</th>
+                          <th className="p-3">ปัญหาหน้างานที่พบ</th>
+                          <th className="p-3">สถานะความก้าวหน้า</th>
+                          <th className="p-3 text-right">ปรับปรุงสถานะปัญหา</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-earth-border bg-white">
+                        {reportedIssuesList.map((req) => (
+                          <tr key={req.id} className="hover:bg-[#FCFAF7] transition-colors">
+                            <td className="p-3 font-mono text-earth-text whitespace-nowrap">{req.date}</td>
+                            <td className="p-3">
+                              <p className="font-bold text-earth-dark">{req.employeeName}</p>
+                              <p className="text-[10px] text-earth-text/80">{req.role.split(' (')[0]}</p>
+                            </td>
+                            <td className="p-3 text-earth-dark font-bold">{req.location.name}</td>
+                            <td className="p-3 max-w-sm">
+                              <p className="text-earth-text block leading-relaxed italic">"{req.checkOut?.issueFound}"</p>
+                            </td>
+                            <td className="p-3">
+                              <span className={`inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-full text-[10px] ${
+                                req.checkOut?.issueResolved 
+                                  ? 'bg-[#E2EBE0] text-[#2E5E2A]' 
+                                  : 'bg-orange-50 text-earth-secondary border border-orange-200 animate-pulse'
+                              }`}>
+                                {req.checkOut?.issueResolved ? <CheckCircle2 className="w-3 h-3 text-[#2E5E2A]" /> : <AlertTriangle className="w-3 h-3 text-earth-secondary" />}
+                                {req.checkOut?.issueResolved ? 'แก้ไขเสร็จสิ้นแล้ว' : 'กำลังประสานงานค้างคา'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right whitespace-nowrap">
+                              {req.checkOut?.issueResolved ? (
+                                <button
+                                  type="button"
+                                  onClick={() => unresolveIssueOnUI(req.id)}
+                                  className="bg-earth-sidebar text-[#6B6359] hover:bg-earth-border/40 border border-earth-border px-2.5 py-1.5 rounded-xl font-bold transition text-[11px] cursor-pointer"
+                                >
+                                  ตั้งเป็นค้างแก้ไข
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => resolveIssueOnUI(req.id)}
+                                  className="bg-earth-primary hover:bg-[#799976] text-white font-sans font-bold px-3 py-1.5 rounded-xl transition inline-flex items-center gap-1 text-[11px] cursor-pointer shadow-3xs"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>อนุมัติว่าแก้ไขแล้ว</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {reportedIssuesList.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center py-10 text-earth-text/60 italic bg-white rounded-xl">
+                              ไม่พบรายงานปัญหาที่ตรงความเงื่อนไขการกรองในระบบ
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* AUTOMATED MONTHLY REPORT FORM */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-extrabold text-earth-dark text-base md:text-lg">รายงานระบุประวัตินอกสถานที่อย่างเป็นทางการ ประจำแผนก</h3>
+                    <span className="text-xs text-earth-primary font-bold bg-[#E2EBE0] border border-earth-border px-3 py-1 rounded-full">พิมพ์สรุปเอกสาร</span>
+                  </div>
+                  <ReportTemplate
+                    selectedMonth={selectedMonth}
+                    requests={requests}
+                    selectedEmployeeId={dashboardEmployeeFilter}
+                    employees={employees}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT 2: ORIGINAL USER DIRECTORY AND ACCOUNT MANIPULATIONS */}
+            {adminActiveTab === 'users' && (
+              <div className="space-y-8 animate-fadeIn">
+                {/* Account Role Stats Bento Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-2xl border border-earth-border shadow-3xs p-4 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-earth-text">จำนวนผู้ใช้งานทั้งหมด</span>
+                <p className="text-3xl font-black text-earth-dark font-mono mt-2">
+                  {employees.length} <span className="text-xs font-normal text-earth-text/60">บัญชี</span>
+                </p>
+                <div className="mt-2 text-[9px] font-bold text-earth-primary">ลงทะเบียนพร้อมใช้</div>
+              </div>
+              <div className="bg-white rounded-2xl border border-earth-border shadow-3xs p-4 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-blue-700">พนักงานทั่วไป (Employee)</span>
+                <p className="text-3xl font-black text-blue-800 font-mono mt-2">
+                  {employees.filter(e => !e.position || e.position === 'employee').length} <span className="text-xs font-normal text-earth-text/60">คน</span>
+                </p>
+                <div className="mt-2 text-[9px] font-bold text-blue-600">พนักงานปฏิบัติการนอกสถานที่</div>
+              </div>
+              <div className="bg-white rounded-2xl border border-earth-border shadow-3xs p-4 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-orange-700">หัวหน้างาน (Manager)</span>
+                <p className="text-3xl font-black text-orange-800 font-mono mt-2">
+                  {employees.filter(e => e.position === 'manager').length} <span className="text-xs font-normal text-earth-text/60">คน</span>
+                </p>
+                <div className="mt-2 text-[9px] font-bold text-orange-600">ฝ่ายหัวหน้างานผู้อนุมัติคำขอ</div>
+              </div>
+              <div className="bg-white rounded-2xl border border-earth-border shadow-3xs p-4 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-amber-700">ผู้คุมระบบ (Administrator)</span>
+                <p className="text-3xl font-black text-amber-800 font-mono mt-2">
+                  {employees.filter(e => e.position === 'admin').length} <span className="text-xs font-normal text-earth-text/60">คน</span>
+                </p>
+                <div className="mt-2 text-[9px] font-bold text-amber-600">ผู้ควบคุมและจัดสรรข้อมูลฐาน</div>
+              </div>
+            </div>
+
+            {/* Main Admin Section: User Editing overlay or creation + User directory */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Left Column: Register New Account OR Edit Current Account (5 columns) */}
+              <div className="lg:col-span-5 space-y-6">
+                
+                {editingEmployeeId ? (
+                  // EDIT EMPLOYEE PANEL
+                  <div className="bg-amber-50/50 rounded-3xl border border-amber-200/80 p-5 md:p-6 shadow-sm space-y-4">
+                    <div className="border-b border-amber-300 pb-3 flex justify-between items-center">
+                      <div>
+                        <h4 className="font-extrabold text-amber-950 text-sm flex items-center gap-1.5">
+                          <Key className="w-4 h-4 text-amber-700" />
+                          <span>✏️ แก้ไขและปรับปรุงข้อมูลพนักงาน</span>
+                        </h4>
+                        <p className="text-[10px] text-amber-800 font-medium">กำลังแก้ไขรหัสพนักงาน: <span className="font-bold font-mono text-amber-950 bg-amber-200/50 px-1.5 py-0.5 rounded-md">{editingEmployeeId}</span></p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingEmployeeId(null)}
+                        className="p-1 text-amber-800 hover:bg-amber-100 rounded-lg cursor-pointer"
+                        title="ยกเลิกการแก้ไข"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateEmployee} className="space-y-4 text-xs">
+                      
+                      {adminUpdateError && (
+                        <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">
+                          ⚠️ {adminUpdateError}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">ชื่อ-นามสกุล *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="กิตติภพ รักดี"
+                            value={editEmpName}
+                            onChange={(e) => setEditEmpName(e.target.value)}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-bold outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">อีเมลติดต่อ *</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="user@kidzandkitz.co.th"
+                            value={editEmpEmail}
+                            onChange={(e) => setEditEmpEmail(e.target.value)}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-bold outline-none font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">สังกัดวิชาชีพ (บทบาท)</label>
+                          <input
+                            type="text"
+                            required
+                            value={editEmpRole}
+                            onChange={(e) => setEditEmpRole(e.target.value)}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-semibold outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">แผนกความรับผิดชอบ</label>
+                          <input
+                            type="text"
+                            required
+                            value={editEmpDept}
+                            onChange={(e) => setEditEmpDept(e.target.value)}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-semibold outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">สิทธิ์เข้าระบบ *</label>
+                          <select
+                            value={editEmpPosition}
+                            onChange={(e) => setEditEmpPosition(e.target.value as 'employee' | 'manager' | 'admin')}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
+                          >
+                            <option value="employee">👨‍💼 พนักงานปฏิบัติงาน</option>
+                            <option value="manager">👑 หัวหน้างาน / ผู้จัดการ</option>
+                            <option value="admin">🔒 ผู้คุมระบบสูงสุด</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-amber-900 mb-1">กลุ่มโครงสร้างงาน</label>
+                          <select
+                            value={editEmpWorkGroup}
+                            onChange={(e) => setEditEmpWorkGroup(e.target.value as 'regular' | 'adhoc')}
+                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
+                          >
+                            <option value="adhoc">💼 พนักงานรายครั้งปกติ</option>
+                            <option value="regular">📅 ทำงานประจำล่วงหน้า</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {editEmpPosition === 'employee' ? (
+                        <div className="bg-amber-100/40 p-3 rounded-xl border border-amber-200/50 space-y-3">
+                          <div>
+                            <label className="block text-[10px] uppercase font-extrabold text-amber-950 mb-1">หัวหน้างานผู้อนุมัติพิกัด *</label>
+                            <select
+                              value={editSelectedApproverId}
+                              onChange={(e) => setEditSelectedApproverId(e.target.value)}
+                              className="w-full bg-white border border-amber-200 rounded-xl px-2 py-1.5 font-bold outline-none text-xs cursor-pointer"
+                            >
+                              {employees
+                                .filter(e => e.position === 'manager' || e.role.includes('จัดการ') || e.id === 'KK0031')
+                                .map(m => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name} ({m.role.split(' (')[0]})
+                                  </option>
+                                ))}
+                              <option value="custom">✍️ ระบุหัวหน้างานกำหนดเอง...</option>
+                            </select>
+                          </div>
+
+                          {editSelectedApproverId === 'custom' && (
+                            <div className="space-y-1">
+                              <label className="block text-[9px] uppercase font-bold text-rose-700">พิมพ์ระบุชื่อหัวหน้าผู้อนุมัติด้วยตนเอง</label>
+                              <input
+                                type="text"
+                                placeholder="เช่น คุณสมบัติ ยอดทอง (ผู้จัดการฝ่ายการตลาด)"
+                                value={editCustomApproverName}
+                                onChange={(e) => setEditCustomApproverName(e.target.value)}
+                                className="w-full bg-white border border-rose-300 rounded-xl px-2.5 py-1.5 font-bold outline-none text-xs"
+                                required
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <div className="border-t border-amber-300/50 pt-3">
+                        <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1 flex items-center gap-1">
+                          <Lock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>รหัสผ่านเข้าเล่นระบบ (แก้ไขได้เลย) *</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editEmpPassword}
+                          onChange={(e) => setEditEmpPassword(e.target.value)}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-bold font-mono outline-none"
+                        />
+                      </div>
+
+                      <div className="flex gap-2.5 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingEmployeeId(null)}
+                          className="flex-1 bg-white hover:bg-amber-100 text-amber-950 border border-amber-300 font-extrabold text-xs py-2 rounded-xl cursor-pointer transition active:scale-95 text-center"
+                        >
+                          ยกเลิก 🙅‍♂️
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs py-2 rounded-xl shadow-xs cursor-pointer transition active:scale-95 text-center"
+                        >
+                          💾 บันทึกการเปลี่ยนแปลง
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  // CREATE NEW EMPLOYEE PANEL
+                  <div className="bg-white rounded-3xl border border-earth-border p-5 shadow-sm space-y-4">
+                    <div className="border-b border-earth-border pb-3">
+                      <h4 className="font-extrabold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <UserPlus className="w-4 h-4 text-earth-primary" />
+                        <span>➕ สร้างพนักงาน/ผู้บริหารใหม่เข้าระบบ</span>
+                      </h4>
+                      <p className="text-[10px] text-earth-text/80 mt-0.5">ระบุรายละเอียดเพื่อสร้างบัญชีจำลองใหม่ รหัสแรกสร้าง และตำแหน่งงานได้ทันที</p>
+                    </div>
+
+                    <form onSubmit={handleCreateEmployee} className="space-y-3.5 text-xs">
+                      
+                      {newEmpSuccessMsg && (
+                        <div className="p-2.5 bg-[#E2EBE0] border border-[#8BA888]/55 rounded-xl text-[#2E5E2A] text-[10.5px] font-black leading-normal">
+                          🎉 {newEmpSuccessMsg}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">รหัสผู้ใช้งาน *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="เช่น EMP011 หรือ manager.sales"
+                            value={newEmpId}
+                            onChange={(e) => {
+                              setNewEmpId(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold outline-none font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">ชื่อ-นามสกุล *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="กิตติภพ รักดี"
+                            value={newEmpName}
+                            onChange={(e) => {
+                              setNewEmpName(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">อีเมลติดต่อระบบ *</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="employee@kidzandkitz.co.th"
+                            value={newEmpEmail}
+                            onChange={(e) => {
+                              setNewEmpEmail(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">สังกัดบทบาทหน้าที่ *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newEmpRole}
+                            onChange={(e) => {
+                              setNewEmpRole(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">แผนกต้นสังกัด *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newEmpDept}
+                            onChange={(e) => {
+                              setNewEmpDept(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-earth-[#8BA888] mb-1">กลุ่มตารางปฏิบัติงาน</label>
+                          <select
+                            value={newEmpWorkGroup}
+                            onChange={(e) => {
+                              setNewEmpWorkGroup(e.target.value as 'regular' | 'adhoc');
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-white border border-[#8BA888]/40 rounded-xl px-2 py-1.5 font-bold outline-none cursor-pointer"
+                          >
+                            <option value="adhoc">💼 พนักงานรายครั้งปกติ</option>
+                            <option value="regular">📅 ทำงานประจำล่วงหน้า</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-earth-sand/20 rounded-2xl border border-earth-border/40 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">สิทธิ์ขอบเขตบัญชี *</label>
+                            <select
+                              value={newEmpPosition}
+                              onChange={(e) => {
+                                const val = e.target.value as 'employee' | 'manager' | 'admin';
+                                setNewEmpPosition(val);
+                                setNewEmpSuccessMsg('');
+                                if (val !== 'employee') {
+                                  setSelectedApproverId('KK0031');
+                                }
+                              }}
+                              className="w-full bg-white border border-earth-border rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
+                            >
+                              <option value="employee">👨‍💼 พนักงานทั่วไป</option>
+                              <option value="manager">👑 หัวหน้างาน / ผู้จัดการ</option>
+                              <option value="admin">🔒 ผู้คุมระบบสูงสุด</option>
+                            </select>
+                          </div>
+
+                          {newEmpPosition === 'employee' ? (
+                            <div>
+                              <label className="block text-[10px] uppercase font-extrabold text-earth-primary mb-1">สายอนุมัติผู้ดูแลพิกัด *</label>
+                              <select
+                                value={selectedApproverId}
+                                onChange={(e) => {
+                                  setSelectedApproverId(e.target.value);
+                                  setNewEmpSuccessMsg('');
+                                }}
+                                className="w-full bg-white border border-earth-border rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
+                              >
+                                {employees
+                                  .filter(e => e.position === 'manager' || e.role.includes('จัดการ') || e.id === 'KK0031')
+                                  .map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name} ({m.role.split(' (')[0]})
+                                    </option>
+                                  ))}
+                                <option value="custom">✍️ ระบุหัวหน้างานกำหนดเอง...</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-[10px] uppercase font-bold text-earth-text/50 mb-1">สายอนุมัติคำขอ</label>
+                              <div className="text-[9px] text-earth-text/80 bg-white/70 border border-dashed border-earth-border/60 p-2 rounded-lg text-center font-bold">
+                                ฝ่ายผู้มีสิทธิ์บริหารอนุมัติความถูกต้อง
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {newEmpPosition === 'employee' && selectedApproverId === 'custom' && (
+                          <div className="space-y-1">
+                            <label className="block text-[9px] uppercase font-bold text-rose-700">พิมพ์ระบุหัวหน้าสายตรง</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="เช่น คุณกานดา ยอดรัก (ผู้จัดการ)"
+                              value={customApproverName}
+                              onChange={(e) => {
+                                setCustomApproverName(e.target.value);
+                                setNewEmpSuccessMsg('');
+                              }}
+                              className="w-full bg-white border border-rose-300 rounded-xl px-2.5 py-1.5 font-bold outline-none text-xs"
+                            />
+                          </div>
+                        )}
+
+                        <div className="border-t border-earth-border/40 pt-2.5">
+                          <label className="block text-[10px] uppercase font-extrabold text-earth-dark mb-1 flex items-center gap-1">
+                            <Lock className="w-3.5 h-3.5 text-earth-primary" />
+                            <span>รหัสผ่านตั้งต้นเข้าสู่ระบบ *</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="เช่น 1234"
+                            value={newEmpPassword}
+                            onChange={(e) => {
+                              setNewEmpPassword(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-white border border-earth-border rounded-xl px-2.5 py-1.5 font-mono font-bold outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-earth-primary hover:bg-[#799976] text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-xs cursor-pointer select-none transition-all duration-150 active:scale-95 text-center"
+                      >
+                        ➕ บันทึกลงทะเบียนพนักงานใหม่ และกำหนดกลุ่มงาน
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: User directory (7 columns) */}
+              <div className="lg:col-span-7 space-y-4">
+                
+                {/* Search & Filter Controls Card */}
+                <div className="bg-white rounded-3xl border border-earth-border p-4 shadow-3xs flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <div className="relative w-full sm:w-auto flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-earth-text/50" />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="ค้นหาตามรหัส, ชื่อ หรืออีเมลกดจุดงาน..."
+                      value={adminSearchQuery}
+                      onChange={(e) => setAdminSearchQuery(e.target.value)}
+                      className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none focus:border-earth-primary/60 focus:ring-1 focus:ring-earth-primary font-bold shadow-3xs"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                    <select
+                      value={adminRoleFilter}
+                      onChange={(e) => setAdminRoleFilter(e.target.value as any)}
+                      className="bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-1.5 text-xs outline-none font-bold cursor-pointer shadow-3xs"
+                    >
+                      <option value="all">กรองสิทธิ์ (ทั้งหมด)</option>
+                      <option value="employee">👨‍💼 พนักงานทั่วไป</option>
+                      <option value="manager">👑 หัวหน้างาน / ผู้จัดการ</option>
+                      <option value="admin">🔒 ผู้คุมระบบสูงสุด</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Directory Accounts List */}
+                <div className="bg-white rounded-3xl border border-earth-border overflow-hidden shadow-xs">
+                  <div className="p-4 border-b border-earth-border/50 bg-[#FAF9F6]">
+                    <h5 className="font-extrabold text-earth-dark text-xs uppercase tracking-wider">บัญชีในฐานระบบพิกัดตอนนี้ ({employees.length} บัญชี)</h5>
+                  </div>
+
+                  <div className="divide-y divide-earth-border/40 max-h-[640px] overflow-y-auto">
+                    {(() => {
+                      const filtered = employees.filter(emp => {
+                        const matchesQuery = !adminSearchQuery.trim() || 
+                          emp.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) ||
+                          emp.id.toLowerCase().includes(adminSearchQuery.toLowerCase()) ||
+                          emp.email.toLowerCase().includes(adminSearchQuery.toLowerCase());
+                        
+                        const matchesRole = adminRoleFilter === 'all' || 
+                          (adminRoleFilter === 'employee' && (emp.position === 'employee' || !emp.position)) ||
+                          (adminRoleFilter === 'manager' && emp.position === 'manager') ||
+                          (adminRoleFilter === 'admin' && emp.position === 'admin');
+
+                        return matchesQuery && matchesRole;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-earth-text/50">
+                            <CheckCircle2 className="w-8 h-8 text-earth-text/30 mx-auto mb-1.5" />
+                            <p className="text-xs font-bold">ไม่พบบัญชีพนักงานที่ค้นหา</p>
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(emp => {
+                        const isRegGroup = emp.workGroup === 'regular';
+                        const empPos = emp.position || 'employee';
+
+                        return (
+                          <div key={emp.id} className="p-4 bg-white hover:bg-[#FCFBF8] transition flex flex-col md:flex-row justify-between items-start md:items-center gap-3.5">
+                            
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ backgroundColor: emp.avatarColor || '#3A5C3D' }} />
+                                <h6 className="font-extrabold text-earth-dark text-xs truncate">{emp.name}</h6>
+                                <span className={`px-2 py-0.5 rounded-sm text-[8px] font-black tracking-wider uppercase ${
+                                  empPos === 'admin' 
+                                    ? 'bg-amber-100 text-amber-850 border border-amber-200' 
+                                    : empPos === 'manager' 
+                                      ? 'bg-orange-100 text-orange-850 border border-orange-200' 
+                                      : 'bg-blue-100 text-blue-850 border border-blue-200'
+                                }`}>
+                                  {empPos === 'admin' ? 'SYSTEM ADMIN' : empPos === 'manager' ? 'MANAGER' : 'EMPLOYEE'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10.5px] text-earth-text/80">
+                                <div><span className="font-semibold text-earth-text/50">รหัสผ่าน:</span> <span className="font-mono font-bold bg-[#FAF9F6] px-1 rounded border border-earth-border/40 text-earth-primary">{emp.password || '1234'}</span></div>
+                                <div><span className="font-semibold text-earth-text/50">รหัสผู้ใช้:</span> <span className="font-mono font-extrabold text-earth-dark">{emp.id}</span></div>
+                                <div className="col-span-2 truncate"><span className="font-semibold text-earth-text/50">บทบาท/แผนก:</span> {emp.role} • {emp.department}</div>
+                                <div className="col-span-2 truncate font-mono text-[9.5px]"><span className="font-semibold text-earth-text/50 font-sans">อีเมล:</span> {emp.email}</div>
+                                {empPos === 'employee' && (
+                                  <div className="col-span-2 truncate text-[9.5px] font-semibold text-teal-800 bg-[#E2EBE0]/60 border border-[#8BA888]/25 pl-1.5 py-0.5 mt-0.5 rounded-md">
+                                    สายผู้อนุมัติ: {emp.approverName || 'ไม่ได้ตั้งหัวหน้างานตรวจ'} (ID: {emp.approverId || 'KK0031'})
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="pt-1 select-none">
+                                <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                                  isRegGroup 
+                                    ? 'bg-[#E2EBE0] text-[#2E5E2A] border-[#8BA888]/40' 
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                }`}>
+                                  {isRegGroup ? 'ทำงานประจำล่วงหน้า (ต้องยื่นแผน)' : 'ทำงานรายครั้งปกติ'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* CTA Action Tools */}
+                            <div className="flex md:flex-col gap-2 w-full md:w-auto shrink-0 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEmployees(prev => prev.map(e => {
+                                    if (e.id === emp.id) {
+                                      return { ...e, workGroup: e.workGroup === 'regular' ? 'adhoc' : 'regular' };
+                                    }
+                                    return e;
+                                  }));
+                                }}
+                                className="bg-white hover:bg-earth-sidebar text-[#6B6359] text-[10px] font-bold px-2.5 py-1.5 rounded-xl border border-earth-border cursor-pointer select-none whitespace-nowrap text-center flex-1 md:flex-initial shadow-3xs"
+                                title="สลับกลุ่มโครงสร้างงานประจำ/รายครั้ง"
+                              >
+                                🔄 สลับกลุ่มงาน
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => startEditingEmployee(emp)}
+                                className="bg-[#FAF9F6] hover:bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-extrabold px-3 py-1.5 rounded-xl cursor-pointer select-none whitespace-nowrap text-center flex-1 md:flex-initial shadow-3xs"
+                              >
+                                ✏️ แก้ไขข้อมูล
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEmployee(emp.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold px-3 py-1.5 rounded-xl cursor-pointer select-none whitespace-nowrap text-center flex-1 md:flex-initial shadow-3xs"
+                              >
+                                ❌ ลบบัญชี
+                              </button>
+                            </div>
+
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
         {/* --- 2. EMPLOYEE VIEW (พนักงาน: SUBMIT REQUEST, MY HISTORY, CHECK-IN/OUT METRIC) --- */}
         {activeRole === 'employee' && (
           <div className="space-y-6">
             {/* Tab navigation inside employee dashboard */}
-            <div className="flex bg-white/70 border border-earth-border p-1 rounded-2xl w-full max-w-md shadow-2xs">
+            <div className="flex bg-white/70 border border-earth-border p-1 rounded-2xl w-full max-w-xl shadow-2xs">
               <button
                 type="button"
                 onClick={() => setEmployeeActiveTab('daily')}
@@ -1711,16 +2874,41 @@ export default function App() {
                 <CalendarRange className="w-4.5 h-4.5" />
                 <span>ยื่นร่างและติดตามแผนล่วงหน้า</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setEmployeeActiveTab('calendar')}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
+                  employeeActiveTab === 'calendar'
+                    ? 'bg-earth-primary text-white shadow-xs'
+                    : 'text-[#6B6359] hover:bg-white/40'
+                }`}
+              >
+                <Calendar className="w-4.5 h-4.5" />
+                <span>ปฏิทินปฏิบัติงานและคำขอของคุณ</span>
+              </button>
             </div>
 
-            {employeeActiveTab === 'planning' ? (
+            {employeeActiveTab === 'planning' && (
               <EmployeePlanning 
                 currentSimEmployee={currentSimEmployee}
                 plans={plans}
                 setPlans={setPlans}
                 popularLocations={POPULAR_LOCATIONS}
               />
-            ) : (
+            )}
+
+            {employeeActiveTab === 'calendar' && (
+              <div className="space-y-6 animate-fadeIn">
+                <ManagerCalendar 
+                  requests={requests.filter(r => r.employeeId === currentSimEmployee.id)}
+                  selectedMonth={selectedMonth}
+                  employees={employees}
+                  plans={plans.filter(p => p.employeeId === currentSimEmployee.id)}
+                />
+              </div>
+            )}
+
+            {employeeActiveTab === 'daily' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Left Hand: Request Form block */}

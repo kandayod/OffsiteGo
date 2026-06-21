@@ -55,6 +55,28 @@ export const MOCK_EMPLOYEES: Employee[] = [
     workGroup: 'adhoc',
     position: 'manager',
     password: '1234'
+  },
+  {
+    id: 'Kanda',
+    name: 'Kanda',
+    role: 'ผู้จัดการฝ่ายปฏิบัติการนอกสถานที่ (Operations Manager)',
+    email: 'kanda.manager@kidzandkitz.co.th',
+    department: 'ฝ่ายบริหารงานบริการทั่วไป',
+    avatarColor: '#AD1457',
+    workGroup: 'adhoc',
+    position: 'manager',
+    password: '1234'
+  },
+  {
+    id: 'admin',
+    name: 'ผู้ดูแลระบบและคุมระบบสูงสุด',
+    role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator)',
+    email: 'systech.kk@kidzandkitz.co.th',
+    department: 'แผนกไอทีกลาง (IT Administration)',
+    avatarColor: '#EF4444',
+    workGroup: 'adhoc',
+    position: 'admin',
+    password: '1234'
   }
 ];
 
