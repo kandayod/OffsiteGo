@@ -95,6 +95,24 @@ export default function App() {
         };
         loaded.push(adminMock);
       }
+      
+      // Ensure the 'werasak' user is always included for safety
+      const hasWerasak = loaded.some(emp => emp.id === 'werasak');
+      if (!hasWerasak) {
+        const werasakMock = MOCK_EMPLOYEES.find(emp => emp.id === 'werasak') || {
+          id: 'werasak',
+          name: 'วีระศักดิ์ (werasak)',
+          role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator - werasak)',
+          email: 'werasak@kidzandkitz.co.th',
+          department: 'แผนกไอทีกลาง (IT Administration)',
+          avatarColor: '#10B981',
+          workGroup: 'adhoc',
+          position: 'admin' as const,
+          password: '1234'
+        };
+        loaded.push(werasakMock);
+      }
+
       // Ensure the 'Kanda' user is always included for safety
       const hasKanda = loaded.some(emp => emp.id === 'Kanda');
       if (!hasKanda) {
@@ -107,10 +125,34 @@ export default function App() {
           avatarColor: '#AD1457',
           workGroup: 'adhoc',
           position: 'manager' as const,
-          password: '1234'
+          password: '1234',
+          approverId: 'admin',
+          approverName: 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)'
         };
         loaded.push(kandaMock);
       }
+
+      // Ensure managers have their correct approvers set
+      loaded = loaded.map(emp => {
+        if (emp.id === 'KK0031') {
+          return {
+            ...emp,
+            position: 'manager' as const,
+            approverId: 'werasak',
+            approverName: 'วีระศักดิ์ (werasak) (ผู้คุมระบบ)'
+          };
+        }
+        if (emp.id === 'Kanda' && !emp.approverId) {
+          return {
+            ...emp,
+            position: 'manager' as const,
+            approverId: 'admin',
+            approverName: 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)'
+          };
+        }
+        return emp;
+      });
+
       return loaded;
     }
 
@@ -118,14 +160,24 @@ export default function App() {
     return MOCK_EMPLOYEES.map((emp, idx) => {
       let pos: 'employee' | 'manager' | 'admin' = 'employee';
       if (emp.id === 'KK0031' || emp.id === 'Kanda') pos = 'manager';
-      else if (emp.id === 'admin') pos = 'admin';
+      else if (emp.id === 'admin' || emp.id === 'werasak') pos = 'admin';
+
+      let appID = undefined;
+      let appName = undefined;
+      if (pos === 'employee') {
+        appID = 'KK0031';
+        appName = 'กานดา ยอดรัก (ผู้จัดการ)';
+      } else if (pos === 'manager') {
+        appID = emp.id === 'KK0031' ? 'werasak' : 'admin';
+        appName = emp.id === 'KK0031' ? 'วีระศักดิ์ (werasak) (ผู้คุมระบบ)' : 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)';
+      }
 
       return {
         ...emp,
         workGroup: idx === 0 || idx === 2 ? 'regular' : 'adhoc', // EMP001 (Regular), EMP002 (Adhoc), EMP003 (Regular)
         position: pos,
-        approverId: (pos === 'manager' || pos === 'admin') ? undefined : 'KK0031',
-        approverName: (pos === 'manager' || pos === 'admin') ? undefined : 'กานดา ยอดรัก (ผู้จัดการ)'
+        approverId: appID,
+        approverName: appName
       };
     });
   });
@@ -871,9 +923,50 @@ export default function App() {
     }));
   };
 
+  // --- USER ACCESS SCOPE FILTERS FOR CALENDAR & DASHBOARD (based on Approval Line) ---
+  const myScopeRequests = useMemo(() => {
+    if (!loggedInUser) return [];
+    if (loggedInUser.position === 'admin') {
+      return requests;
+    }
+    return requests.filter(r => 
+      r.employeeId === loggedInUser.id || 
+      employees.find(e => e.id === r.employeeId)?.approverId === loggedInUser.id
+    );
+  }, [requests, employees, loggedInUser]);
+
+  const myScopePlans = useMemo(() => {
+    if (!loggedInUser) return [];
+    if (loggedInUser.position === 'admin') {
+      return plans;
+    }
+    return plans.filter(p => 
+      p.employeeId === loggedInUser.id || 
+      employees.find(e => e.id === p.employeeId)?.approverId === loggedInUser.id
+    );
+  }, [plans, employees, loggedInUser]);
+
+  const pendingRequestsToApprove = useMemo(() => {
+    if (!loggedInUser) return [];
+    return requests.filter(r => {
+      if (r.status !== 'pending') return false;
+      const emp = employees.find(e => e.id === r.employeeId);
+      return emp?.approverId === loggedInUser.id;
+    });
+  }, [requests, employees, loggedInUser]);
+
+  const pendingPlansToApprove = useMemo(() => {
+    if (!loggedInUser) return [];
+    return plans.filter(p => {
+      if (p.status !== 'pending') return false;
+      const emp = employees.find(e => e.id === p.employeeId);
+      return emp?.approverId === loggedInUser.id;
+    });
+  }, [plans, employees, loggedInUser]);
+
   // --- STATS MATHEMATICAL CALCULATION FOR DASHBOARD METRICS ---
   const dashboardStats = useMemo(() => {
-    const currentRequests = requests.filter(r => r.date.startsWith(selectedMonth));
+    const currentRequests = myScopeRequests.filter(r => r.date.startsWith(selectedMonth));
     const total = currentRequests.length;
     const approved = currentRequests.filter(r => r.status === 'approved').length;
     const pending = currentRequests.filter(r => r.status === 'pending').length;
@@ -903,7 +996,7 @@ export default function App() {
       unresolvedIssues: totalIssues - resolvedIssues,
       activeOffSitePercentage: approved > 0 ? Math.round((completed / approved) * 100) : 0
     };
-  }, [requests, selectedMonth]);
+  }, [myScopeRequests, selectedMonth]);
 
   // List of all active issues currently reported for the checklist
   const reportedIssuesList = useMemo(() => {
@@ -1110,6 +1203,27 @@ export default function App() {
             </div>
           </div>
 
+          {loggedInUser?.position === 'manager' && (
+            <button
+              onClick={() => {
+                setActiveRole(prev => {
+                  if (prev === 'employee') {
+                    return 'manager';
+                  } else {
+                    return 'employee';
+                  }
+                });
+              }}
+              className="px-3 py-2 bg-earth-primary/10 hover:bg-earth-primary/20 text-earth-primary border border-earth-primary/30 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
+              title="สลับโหมดพนักงานเพื่อบันทึกงานของตนเอง หรือโหมดผู้จัดการเพื่ออนุมัติ"
+            >
+              🔄 <span className="hidden sm:inline">สลับโหมดหลัก:</span> 
+              <span className="font-extrabold text-earth-secondary">
+                {activeRole === 'employee' ? '➡️ อนุมัติ & ติดตาม' : '➡️ ยื่นคำขอ / แผน'}
+              </span>
+            </button>
+          )}
+
           <button
             onClick={() => {
               setChangePasswordError('');
@@ -1226,10 +1340,10 @@ export default function App() {
 
             {/* MANAGER WORKFORCE CALENDAR VIEW */}
             <ManagerCalendar 
-              requests={requests}
+              requests={myScopeRequests}
               selectedMonth={selectedMonth}
               employees={employees}
-              plans={plans}
+              plans={myScopePlans}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1512,10 +1626,10 @@ export default function App() {
                 <div className="lg:col-span-12 space-y-4">
                   <h4 className="font-bold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <ClipboardList className="w-4 h-4 text-earth-primary" />
-                    <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ ({plans.filter(p => p.status === 'pending').length} ฉบับเสนอล่าสุด)</span>
+                    <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ ({pendingPlansToApprove.length} ฉบับเสนอล่าสุด)</span>
                   </h4>
 
-                  {plans.filter(p => p.status === 'pending').length === 0 ? (
+                  {pendingPlansToApprove.length === 0 ? (
                     <div className="text-center py-10 text-earth-text/60 border border-dashed border-earth-border rounded-2xl bg-white">
                       <CheckCircle2 className="w-8 h-8 text-earth-primary/50 mx-auto mb-1.5" />
                       <p className="text-xs font-bold text-earth-primary">พิจารณาโครงสร้างเสร็จสิ้นครบ!</p>
@@ -1523,7 +1637,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="space-y-4 max-h-[365px] overflow-y-auto pr-1">
-                      {plans.filter(p => p.status === 'pending').map(plan => (
+                      {pendingPlansToApprove.map(plan => (
                         <div key={plan.id} className="p-4 rounded-2xl border border-earth-border bg-white space-y-3 shadow-3xs relative overflow-hidden">
                           <div className="absolute top-0 left-0 w-1.5 h-full bg-[#8BA888]" />
                           <div className="flex justify-between items-start pl-1.5">
@@ -1609,7 +1723,7 @@ export default function App() {
                                       ...p,
                                       status: 'rejected',
                                       rejectedReason: reason,
-                                      approvedBy: 'กานดา ยอดรัก (ผู้จัดการ)',
+                                      approvedBy: loggedInUser ? `${loggedInUser.name} (${loggedInUser.role})` : 'ผู้อนุมัติ',
                                       approvedAt: new Date().toLocaleDateString('th-TH')
                                     };
                                   }
@@ -1626,8 +1740,8 @@ export default function App() {
                                 const allConflicts = plan.plannedDates.flatMap(pd => checkDateConflicts(plan.id, plan.employeeId, pd.date, pd.location.name, pd.purpose));
                                 if (allConflicts.length > 0) {
                                   const confirmMsg = `⚠️ ตรวจพบพนักงานลงปฏิบัติงานทับซ้อนกันทั้งหมด ${allConflicts.length} จุด!\n(ลงปฏิบัติงานในวันเดียวกัน สถานที่เดียวกัน และเรื่องวัตถุประสงค์เดียวกัน)\n\nรายชื่อพนักงานที่ทับซ้อน:\n` +
-                                    allConflicts.map((c, i) => `  ${i+1}. คุณ${c.employeeName} (${c.employeeId}) [${c.sourceType === 'plan' ? 'แผนล่วงหน้า' : 'คำขอรายครั้ง'}] (${c.status === 'approved' ? 'อนุมัติแล้ว' : 'รออนุมัติ'})\n     วัตถุประสงค์: "\${c.purpose}"`).join('\n') +
-                                    `\n\nคุณกานดา ยอดรัก ยืนยันการอนุมัติแผนปฏิบัติงานของ ${plan.employeeName} ต่อไปหรือไม่?`;
+                                    allConflicts.map((c, i) => `  ${i+1}. คุณ${c.employeeName} (${c.employeeId}) [${c.sourceType === 'plan' ? 'แผนล่วงหน้า' : 'คำขอรายครั้ง'}] (${c.status === 'approved' ? 'อนุมัติแล้ว' : 'รออนุมัติ'})\n     วัตถุประสงค์: "${c.purpose}"`).join('\n') +
+                                    `\n\nคุณ ${loggedInUser?.name || 'หัวหน้างาน'} ยืนยันการอนุมัติแผนปฏิบัติงานของ ${plan.employeeName} ต่อไปหรือไม่?`;
                                   if (!window.confirm(confirmMsg)) {
                                     return;
                                   }
@@ -1638,7 +1752,7 @@ export default function App() {
                                     return {
                                       ...p,
                                       status: 'approved',
-                                      approvedBy: 'กานดา ยอดรัก (ผู้จัดการ)',
+                                      approvedBy: loggedInUser ? `${loggedInUser.name} (${loggedInUser.role})` : 'ผู้อนุมัติ',
                                       approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
                                     };
                                   }
@@ -1663,7 +1777,7 @@ export default function App() {
                 <div>
                   <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
                     <ClipboardList className="w-5 h-5 text-earth-primary" />
-                    <span>คำขออนุมัติลงพื้นที่นอกสถานที่ล่าช้า ({requests.filter(r => r.status === 'pending').length} รายการที่รออยู่)</span>
+                    <span>คำขออนุมัติลงพื้นที่นอกสถานที่ล่าช้า ({pendingRequestsToApprove.length} รายการที่รออยู่)</span>
                   </h3>
                   <p className="text-xs text-earth-text/80">หัวหน้าพิจารณาอนุมัติพิกัด และเป้าหมายภารกิจเพื่ออนุญาตให้บุคลากรเข้าถึงระบายเช็คอิน</p>
                 </div>
@@ -1671,7 +1785,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {requests.filter(r => r.status === 'pending').map((req) => (
+                {pendingRequestsToApprove.map((req) => (
                   <div key={req.id} className="p-4 rounded-xl border border-earth-border hover:border-earth-primary/50 bg-[#FBF9F6] transition-all flex flex-col justify-between gap-4 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1.5 h-full bg-earth-sand" />
                     <div className="space-y-2.5 pl-1.5">
@@ -1720,7 +1834,7 @@ export default function App() {
                   </div>
                 ))}
 
-                {requests.filter(r => r.status === 'pending').length === 0 && (
+                {pendingRequestsToApprove.length === 0 && (
                   <div className="col-span-1 md:col-span-2 text-center py-10 text-earth-text/60 italic bg-[#FAF8F5] rounded-2xl border border-dashed border-earth-border w-full">
                     <CheckCircle className="w-8 h-8 text-earth-primary mx-auto mb-2" />
                     <span>ไม่มีรายการสแตนด์บายรอการลงตราอนุมัติในรอบเดือนนี้</span>
@@ -1948,20 +2062,20 @@ export default function App() {
 
                 {/* MANAGER WORKFORCE CALENDAR VIEW */}
                 <ManagerCalendar 
-                  requests={requests}
+                  requests={myScopeRequests}
                   selectedMonth={selectedMonth}
                   employees={employees}
-                  plans={plans}
+                  plans={myScopePlans}
                 />
 
                 {/* PLAN APPROVALS DESK */}
                 <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
                   <h4 className="font-bold text-earth-dark text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-earth-border pb-3">
                     <ClipboardList className="w-4 h-4 text-earth-primary" />
-                    <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ (ผู้คุมระบบอนุมัติร่วม | {plans.filter(p => p.status === 'pending').length} ฉบับเสนอล่าสุด)</span>
+                    <span>คำขออนุมัติร่างตารางแผนปฏิบัติงานนอกสถานที่ (ผู้คุมระบบอนุมัติร่วม | {pendingPlansToApprove.length} ฉบับเสนอล่าสุด)</span>
                   </h4>
 
-                  {plans.filter(p => p.status === 'pending').length === 0 ? (
+                  {pendingPlansToApprove.length === 0 ? (
                     <div className="text-center py-10 text-earth-text/60 border border-dashed border-earth-border rounded-2xl bg-white">
                       <CheckCircle2 className="w-8 h-8 text-earth-primary/50 mx-auto mb-1.5" />
                       <p className="text-xs font-bold text-earth-primary">พิจารณาโครงสร้างตารางงานพนักงานเสร็จสิ้นครบถ้วน!</p>
@@ -1969,7 +2083,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-                      {plans.filter(p => p.status === 'pending').map(plan => (
+                      {pendingPlansToApprove.map(plan => (
                         <div key={plan.id} className="p-4 rounded-2xl border border-earth-border bg-white space-y-3 shadow-3xs relative overflow-hidden">
                           <div className="absolute top-0 left-0 w-1.5 h-full bg-[#8BA888]" />
                           <div className="flex justify-between items-start pl-1.5">
@@ -2073,14 +2187,14 @@ export default function App() {
                     <div>
                       <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
                         <ClipboardList className="w-5 h-5 text-earth-primary" />
-                        <span>คำขออนุมัติลงพื้นที่นอกสถานที่ล่าช้า ({requests.filter(r => r.status === 'pending').length} รายการที่รออยู่)</span>
+                        <span>คำขออนุมัติลงพื้นที่นอกสถานที่ล่าช้า ({pendingRequestsToApprove.length} รายการที่รออยู่)</span>
                       </h3>
                       <p className="text-xs text-earth-text/80">ผู้ดูแลระบบเข้าตรวจสอบและอนุมัติลงพิกัดทดแทนหัวหน้างานได้โดยตรง</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {requests.filter(r => r.status === 'pending').map((req) => (
+                    {pendingRequestsToApprove.map((req) => (
                       <div key={req.id} className="p-4 rounded-xl border border-earth-border hover:border-earth-primary/50 bg-[#FBF9F6] transition-all flex flex-col justify-between gap-4 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-earth-sand" />
                         <div className="space-y-2.5 pl-1.5">
@@ -2129,7 +2243,7 @@ export default function App() {
                       </div>
                     ))}
 
-                    {requests.filter(r => r.status === 'pending').length === 0 && (
+                    {pendingRequestsToApprove.length === 0 && (
                       <div className="col-span-1 md:col-span-2 text-center py-10 text-earth-text/60 italic bg-[#FAF8F5] rounded-2xl border border-dashed border-earth-border w-full">
                         <CheckCircle className="w-8 h-8 text-earth-primary mx-auto mb-2" />
                         <span>ไม่มีรายการส่งขอลงตราอนุญาตพิกัดในรอบเดือนนี้</span>
@@ -2900,10 +3014,10 @@ export default function App() {
             {employeeActiveTab === 'calendar' && (
               <div className="space-y-6 animate-fadeIn">
                 <ManagerCalendar 
-                  requests={requests.filter(r => r.employeeId === currentSimEmployee.id)}
+                  requests={myScopeRequests}
                   selectedMonth={selectedMonth}
                   employees={employees}
-                  plans={plans.filter(p => p.employeeId === currentSimEmployee.id)}
+                  plans={myScopePlans}
                 />
               </div>
             )}
@@ -3065,7 +3179,7 @@ export default function App() {
                     className="w-full bg-earth-primary hover:bg-[#799976] text-white font-sans text-xs font-bold py-3 rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95 duration-150"
                   >
                     <Send className="w-4 h-4" />
-                    <span>ส่งขออนุมัติต่อผู้จัดการ ({currentSimEmployee.role.split(' (')[0]})</span>
+                    <span>ส่งขออนุมัติต่อ: {currentSimEmployee.approverName || 'ผู้จัดการ'}</span>
                   </button>
                 </form>
               </div>

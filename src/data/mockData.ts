@@ -48,13 +48,15 @@ export const MOCK_EMPLOYEES: Employee[] = [
   {
     id: 'KK0031',
     name: 'กานดา ยอดรัก',
-    role: 'ฝู้จัดการฝ่ายสำนักงาน (Admin Manager)',
+    role: 'ผู้จัดการฝ่ายสำนักงาน (Admin Manager)',
     email: 'admin.kk@kidzandkitz.co.th',
     department: ' ฝ่ายสำนักงาน ',
     avatarColor: '#8B5CF6',
     workGroup: 'adhoc',
     position: 'manager',
-    password: '1234'
+    password: '1234',
+    approverId: 'werasak',
+    approverName: 'วีระศักดิ์ (werasak) (ผู้คุมระบบ)'
   },
   {
     id: 'Kanda',
@@ -65,7 +67,9 @@ export const MOCK_EMPLOYEES: Employee[] = [
     avatarColor: '#AD1457',
     workGroup: 'adhoc',
     position: 'manager',
-    password: '1234'
+    password: '1234',
+    approverId: 'admin',
+    approverName: 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)'
   },
   {
     id: 'admin',
@@ -74,6 +78,17 @@ export const MOCK_EMPLOYEES: Employee[] = [
     email: 'systech.kk@kidzandkitz.co.th',
     department: 'แผนกไอทีกลาง (IT Administration)',
     avatarColor: '#EF4444',
+    workGroup: 'adhoc',
+    position: 'admin',
+    password: '1234'
+  },
+  {
+    id: 'werasak',
+    name: 'วีระศักดิ์ (werasak)',
+    role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator - werasak)',
+    email: 'werasak@kidzandkitz.co.th',
+    department: 'แผนกไอทีกลาง (IT Administration)',
+    avatarColor: '#10B981',
     workGroup: 'adhoc',
     position: 'admin',
     password: '1234'
