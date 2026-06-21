@@ -15,6 +15,7 @@ import ReportTemplate from './components/ReportTemplate';
 import DashboardAnalytics from './components/DashboardAnalytics';
 import ManagerCalendar from './components/ManagerCalendar';
 import EmployeePlanning from './components/EmployeePlanning';
+import UserManualModal from './components/UserManualModal';
 
 // UI Icons
 import { 
@@ -50,7 +51,8 @@ import {
   LogOut,
   Key,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen
 } from 'lucide-react';
 
 export default function App() {
@@ -258,6 +260,7 @@ export default function App() {
 
   // Change Password States
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
+  const [isUserManualOpen, setIsUserManualOpen] = useState<boolean>(false);
   const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('');
   const [newPasswordInput, setNewPasswordInput] = useState<string>('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
@@ -1223,6 +1226,15 @@ export default function App() {
               </span>
             </button>
           )}
+
+          <button
+            onClick={() => setIsUserManualOpen(true)}
+            className="px-3.5 py-2 bg-earth-primary/10 hover:bg-earth-primary/20 text-earth-primary border border-earth-primary/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
+            title="คู่มือการใช้งานระบบและการดาวน์โหลด PDF"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-earth-primary shrink-0" />
+            <span className="hidden md:inline">คู่มือการใช้งาน 📖</span>
+          </button>
 
           <button
             onClick={() => {
@@ -3704,6 +3716,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* USER MANUAL OVERLAY */}
+      <UserManualModal
+        isOpen={isUserManualOpen}
+        onClose={() => setIsUserManualOpen(false)}
+        currentUserRole={loggedInUser ? loggedInUser.position : 'employee'}
+        currentUserName={loggedInUser ? loggedInUser.name : 'ผู้ใช้ทั่วไป'}
+      />
 
       {/* FOOTER METADATA SYSTEM */}
       <footer className="bg-[#433E3B] border-t border-earth-border/20 text-white/65 text-xs py-8 px-6 text-center space-y-3 mt-12">
