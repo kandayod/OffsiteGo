@@ -60,6 +60,7 @@ export interface Employee {
   position?: 'employee' | 'manager'; // employee = พนักงาน, manager = หัวหน้างาน
   approverId?: string; // รหัสหัวหน้างานผู้อนุมัติ
   approverName?: string; // สายอนุมัติ
+  password?: string; // Password for security login
 }
 
 export interface OffSitePlanDate {

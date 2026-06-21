@@ -15,7 +15,6 @@ import ReportTemplate from './components/ReportTemplate';
 import DashboardAnalytics from './components/DashboardAnalytics';
 import ManagerCalendar from './components/ManagerCalendar';
 import EmployeePlanning from './components/EmployeePlanning';
-import GASPorter from './components/GASPorter';
 
 // UI Icons
 import { 
@@ -47,7 +46,11 @@ import {
   CalendarRange,
   Shuffle,
   FileCode,
-  UserPlus
+  UserPlus,
+  LogOut,
+  Key,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function App() {
@@ -140,13 +143,126 @@ export default function App() {
     localStorage.setItem('offsite_plans', JSON.stringify(plans));
   }, [plans]);
 
+  // Logged-in User State (Persisted)
+  const [loggedInUser, setLoggedInUser] = useState<Employee | null>(() => {
+    const saved = localStorage.getItem('offsite_logged_in_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Change Password States
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('');
+  const [newPasswordInput, setNewPasswordInput] = useState<string>('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState<string>('');
+  const [changePasswordError, setChangePasswordError] = useState<string>('');
+
   // Roles & Simulator State
-  const [activeRole, setActiveRole] = useState<'employee' | 'manager'>('manager');
+  const [activeRole, setActiveRole] = useState<'employee' | 'manager'>(() => {
+    const saved = localStorage.getItem('offsite_logged_in_user');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Employee;
+        return parsed.position === 'manager' || parsed.id === 'KK0031' ? 'manager' : 'employee';
+      } catch (e) {
+        return 'employee';
+      }
+    }
+    return 'employee'; // default is employee view
+  });
   const [employeeActiveTab, setEmployeeActiveTab] = useState<'daily' | 'planning'>('daily');
-  const [gasPorterOpen, setGasPorterOpen] = useState<boolean>(false);
-  const [simulatedEmployeeId, setSimulatedEmployeeId] = useState<string>('EMP001');
+  const [simulatedEmployeeId, setSimulatedEmployeeId] = useState<string>(() => {
+    const saved = localStorage.getItem('offsite_logged_in_user');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Employee;
+        return parsed.id;
+      } catch (e) {
+        return 'EMP001';
+      }
+    }
+    return 'EMP001';
+  });
+
+  useEffect(() => {
+    if (loggedInUser) {
+      localStorage.setItem('offsite_logged_in_user', JSON.stringify(loggedInUser));
+      setActiveRole(loggedInUser.position === 'manager' || loggedInUser.id === 'KK0031' ? 'manager' : 'employee');
+      setSimulatedEmployeeId(loggedInUser.id);
+    } else {
+      localStorage.removeItem('offsite_logged_in_user');
+    }
+  }, [loggedInUser]);
+
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-06');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Login Page States
+  const [loginTab, setLoginTab] = useState<'employee' | 'manager'>('employee');
+  const [inputUserId, setInputUserId] = useState<string>('');
+  const [inputPassword, setInputPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+
+  const handleLoginSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    if (!inputUserId.trim()) {
+      setLoginError('กรุณากรอกรหัสพนักงาน หรืออีเมลติดต่อ');
+      return;
+    }
+
+    if (!inputPassword.trim()) {
+      setLoginError('กรุณากรอกรหัสผ่านเพื่อความปลอดภัย');
+      return;
+    }
+
+    const match = employees.find(emp => 
+      emp.id.trim().toUpperCase() === inputUserId.trim().toUpperCase() || 
+      emp.email.trim().toLowerCase() === inputUserId.trim().toLowerCase()
+    );
+
+    if (!match) {
+      setLoginError('ไม่พบข้อมูลรหัสพนักงาน หรืออีเมลนี้ในระบบฐานข้อมูล');
+      return;
+    }
+
+    // Securely verify password
+    const correctPassword = match.password || '1234';
+    if (inputPassword.trim() !== correctPassword) {
+      setLoginError('รหัสผ่านเข้าสู่ระบบไม่ถูกต้อง กรุณาตรวจสอบหรือใช้รหัสผ่านตั้งต้น 1234 สำหรับบัญชีจำลอง');
+      return;
+    }
+
+    // Verify correct role partition alignment:
+    const isEmpManager = match.position === 'manager' || match.id === 'KK0031';
+    if (loginTab === 'manager' && !isEmpManager) {
+      setLoginError('บัญชีนี้ไม่มีสิทธิ์ระดับหัวหน้างาน โปรดล็อกอินผ่านแท็บพนักงานปฏิบัติการ');
+      return;
+    }
+    if (loginTab === 'employee' && isEmpManager) {
+      setLoginError('บัญชีนี้มีสิทธิ์ระดับหัวหน้างาน โปรดเข้าใช้งานที่แท็บช่องทางหัวหน้างาน');
+      return;
+    }
+
+    // Accept login
+    setLoggedInUser(match);
+    setInputUserId('');
+    setInputPassword('');
+  };
+
+  const handleQuickLogin = (emp: Employee) => {
+    setLoginError('');
+    setInputUserId(emp.id);
+    setInputPassword(emp.password || '1234');
+  };
 
   // Form State
   const [formDate, setFormDate] = useState<string>('2026-06-13');
@@ -187,6 +303,7 @@ export default function App() {
   const [newEmpWorkGroup, setNewEmpWorkGroup] = useState<'regular' | 'adhoc'>('adhoc');
   const [selectedApproverId, setSelectedApproverId] = useState<string>('KK0031');
   const [customApproverName, setCustomApproverName] = useState<string>('');
+  const [newEmpPassword, setNewEmpPassword] = useState<string>('1234');
   const [newEmpSuccessMsg, setNewEmpSuccessMsg] = useState<string>('');
 
   const handleCreateEmployee = (e: FormEvent) => {
@@ -230,16 +347,75 @@ export default function App() {
       workGroup: newEmpWorkGroup,
       position: newEmpPosition,
       approverId: finalApproverId,
-      approverName: finalApproverName
+      approverName: finalApproverName,
+      password: newEmpPassword.trim() || '1234'
     };
 
     setEmployees(prev => [...prev, created]);
-    setNewEmpSuccessMsg(`สำเร็จ: บันทึกข้อมูล ${created.id} เรียบร้อยแล้ว สลับเป็นโปรไฟล์ใหม่ในเมนูจำลองระบบด้านบนได้ทันที!`);
+    setNewEmpSuccessMsg(`สำเร็จ: บันทึกข้อมูล ${created.id} และกำหนดรหัสผ่านเรียบร้อยแล้ว สลับเป็นโปรไฟล์ใหม่ในเมนูจำลองระบบด้านบนได้ทันที!`);
     
     // Clear fields
     setNewEmpId('');
     setNewEmpName('');
     setNewEmpEmail('');
+    setNewEmpPassword('1234');
+  };
+
+  const handleChangePasswordSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError('');
+    setChangePasswordSuccess('');
+
+    if (!loggedInUser) return;
+    
+    const currentPass = loggedInUser.password || '1234';
+    if (currentPasswordInput !== currentPass) {
+      setChangePasswordError('รหัสผ่านปัจจุบันไม่ถูกต้อง กรุณาป้อนรหัสให้ถูกต้อง');
+      return;
+    }
+
+    if (!newPasswordInput.trim()) {
+      setChangePasswordError('โปรดป้อนรหัสผ่านใหม่');
+      return;
+    }
+
+    if (newPasswordInput.length < 4) {
+      setChangePasswordError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร เพื่อความปลอดภัย');
+      return;
+    }
+
+    if (newPasswordInput !== confirmPasswordInput) {
+      setChangePasswordError('การยืนยันรหัสผ่านใหม่ไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง');
+      return;
+    }
+
+    // Update inside employees array state
+    const updatedEmployees = employees.map(emp => {
+      if (emp.id === loggedInUser.id) {
+        return {
+          ...emp,
+          password: newPasswordInput.trim()
+        };
+      }
+      return emp;
+    });
+
+    setEmployees(updatedEmployees);
+    
+    const updatedUser = {
+      ...loggedInUser,
+      password: newPasswordInput.trim()
+    };
+    
+    setLoggedInUser(updatedUser);
+    localStorage.setItem('offsite_logged_in_user', JSON.stringify(updatedUser));
+
+    setChangePasswordSuccess('เปลี่ยนรหัสผ่านเสร็จสมบูรณ์เรียบร้อยแล้ว!');
+    
+    // Clear inputs
+    setCurrentPasswordInput('');
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
   };
 
   // Trigger loading real geolocation coordinates
@@ -599,6 +775,186 @@ export default function App() {
     });
   }, [requests, dashboardEmployeeFilter, dashboardIssueStateFilter]);
 
+  if (!loggedInUser) {
+    return (
+      <div className="min-h-screen bg-[#F7F5F0] text-earth-text font-sans antialiased flex flex-col justify-between py-12 px-4 relative overflow-hidden">
+        {/* Decorative ambient elements */}
+        <div className="absolute top-0 left-0 w-[40rem] h-[40rem] bg-earth-primary/5 rounded-full filter blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-[40rem] h-[40rem] bg-earth-secondary/5 rounded-full filter blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none" />
+
+        <div className="max-w-md w-full mx-auto my-auto space-y-7 z-10">
+          {/* Logo & Headline */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex bg-earth-primary/10 border border-earth-primary/25 text-earth-primary font-black text-[10px] tracking-widest px-3 py-1 rounded-full items-center gap-1.5 shadow-2xs">
+              <ShieldCheck className="w-4 h-4 text-earth-primary" />
+              <span>SECURITY CENTER PORTAL</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-earth-dark leading-tight">
+              KIDZ & KITZ CO., LTD.
+            </h1>
+            <p className="text-earth-text/80 text-xs font-semibold max-w-sm mx-auto">
+              ระบบขออนุมัติปฏิบัติงานนอกสถานที่ คลุมแผนงานโครงการ และติดตามตรวจสอบพิกัด GPS ประจำสาขา
+            </p>
+          </div>
+
+          {/* Login Card */}
+          <div className="bg-white rounded-3xl border border-earth-border p-6 md:p-8 shadow-md hover:shadow-lg transition-all space-y-6">
+            
+            {/* Tabs for role selection */}
+            <div className="grid grid-cols-2 gap-2 bg-[#F2EFE9] p-1.5 rounded-2xl border border-earth-border/40">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginTab('employee');
+                  setLoginError('');
+                }}
+                className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                  loginTab === 'employee'
+                    ? 'bg-earth-primary text-white shadow-xs'
+                    : 'text-earth-text/80 hover:bg-white/30'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>พนักงานปฏิบัติงาน</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginTab('manager');
+                  setLoginError('');
+                }}
+                className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                  loginTab === 'manager'
+                    ? 'bg-[#D27D59] text-white shadow-xs'
+                    : 'text-earth-text/80 hover:bg-white/30'
+                }`}
+              >
+                <MonitorCheck className="w-3.5 h-3.5" />
+                <span>หัวหน้างาน / คุมระบบ</span>
+              </button>
+            </div>
+
+            {/* Simulated preset quick login list */}
+            <div className="space-y-2.5">
+              <h4 className="text-[10px] uppercase font-bold tracking-wider text-earth-dark/70 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-earth-primary animate-pulse" />
+                <span>บัญชีจำลองเตรียมไว้สำหรับการทดสอบ (Quick Login Roster)</span>
+              </h4>
+              
+              <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
+                {employees
+                  .filter(emp => {
+                    const isManager = emp.position === 'manager' || emp.id === 'KK0031';
+                    return loginTab === 'manager' ? isManager : !isManager;
+                  })
+                  .map(emp => (
+                    <button
+                      key={emp.id}
+                      type="button"
+                      onClick={() => handleQuickLogin(emp)}
+                      className="text-left w-full bg-[#FAF9F6] hover:bg-white active:bg-[#F2EFE9] border border-earth-border/60 hover:border-earth-primary rounded-2xl p-2.5 flex items-center justify-between gap-3 transition cursor-pointer group shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold font-sans shadow-inner" style={{ backgroundColor: emp.avatarColor || '#8BA888' }}>
+                          {emp.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="font-bold text-earth-dark text-xs">{emp.name}</div>
+                          <div className="text-[10px] text-earth-text/70 font-medium font-sans flex items-center gap-1">
+                            <span className="font-mono font-bold text-earth-primary">{emp.id}</span> • {emp.role.split(' (')[0]}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-black bg-white group-hover:bg-earth-primary group-hover:text-white px-2 py-1 rounded-lg border border-earth-border/50 text-earth-text/85 shadow-3xs transition-all pointer-events-none">
+                        เข้าใช้งาน 🚪
+                      </span>
+                    </button>
+                  ))}
+                {employees.filter(emp => {
+                  const isManager = emp.position === 'manager' || emp.id === 'KK0031';
+                  return loginTab === 'manager' ? isManager : !isManager;
+                }).length === 0 && (
+                  <div className="text-center p-4 bg-gray-50 border border-dashed rounded-xl text-xs text-earth-text/60 font-semibold">
+                    ไม่มีบัญชีจำลองในกลุ่มนี้ กรุณาสร้างบัญชีกลุ่มปฏิบัติงานนี้ก่อน
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-earth-border/50"></div>
+              <span className="flex-shrink mx-3 text-[10px] text-earth-text/45 uppercase font-black tracking-widest font-sans">หรือพิมพ์รหัสเข้าใช้งานกรณีระบุเอง</span>
+              <div className="flex-grow border-t border-earth-border/50"></div>
+            </div>
+
+            {/* Manual Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase font-black text-earth-dark/90 tracking-wider mb-1 flex items-center gap-1">
+                  <User className="w-3 h-3 text-earth-primary" />
+                  <span>รหัสพนักงาน หรืออีเมลติดต่อหน่วยงาน</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น EMP001 หรือ admin.kk@kidzandkitz.co.th"
+                  value={inputUserId}
+                  onChange={(e) => {
+                    setInputUserId(e.target.value);
+                    setLoginError('');
+                  }}
+                  className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-2 text-xs font-bold outline-none font-sans focus:border-earth-primary focus:ring-1 focus:ring-earth-primary transition shadow-3xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-black text-earth-dark/90 tracking-wider mb-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-earth-primary" />
+                  <span>รหัสผ่านเข้าใช้งาน (ระบุรหัสใดก็ได้เพื่อจำลอง)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Key className="h-3 w-3 text-earth-text/45" />
+                  </span>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={inputPassword}
+                    onChange={(e) => setInputPassword(e.target.value)}
+                    className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl pl-9 pr-3 py-2 text-xs font-mono font-bold outline-none focus:border-earth-primary focus:ring-1 focus:ring-earth-primary transition shadow-3xs"
+                  />
+                </div>
+              </div>
+
+              {loginError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-black leading-relaxed flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className={`w-full py-2.5 rounded-xl text-xs font-black shadow-sm text-white select-none cursor-pointer transition active:scale-98 text-center uppercase tracking-wide flex items-center justify-center gap-1.5 ${
+                  loginTab === 'manager'
+                    ? 'bg-[#D27D59] hover:bg-[#C26D49]'
+                    : 'bg-earth-primary hover:bg-[#7D9A7A]'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>เข้าสู่ระบบรักษาความปลอดภัย</span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* System footer */}
+        <div className="text-center text-[10px] text-earth-text/50 font-black tracking-wider uppercase font-sans z-10 mt-6">
+          © 2026 Kidz & Kitz Authorized Personnel Only • Safe Gatekeeper System
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-earth-bg text-earth-text font-sans antialiased text-sm">
       {/* REAL-TIME SYSTEM BAR INFORMATION */}
@@ -620,43 +976,45 @@ export default function App() {
           </div>
         </div>
 
-        {/* ROLE BAR & USER SELECTOR */}
-        <div className="flex items-center gap-3 mt-4 md:mt-0 bg-white/60 p-1.5 rounded-xl border border-earth-border shadow-xs">
+        {/* LOGGED IN USER CONTEXT & OUTLET */}
+        <div className="flex items-center gap-3 mt-4 md:mt-0 bg-white/70 p-1.5 rounded-2xl border border-earth-border shadow-xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FAF9F6] rounded-xl border border-earth-border/30 text-xs shadow-3xs">
+            <div className="w-5.5 h-5.5 rounded-full flex items-center justify-center text-white text-[10px] font-black" style={{ backgroundColor: loggedInUser?.avatarColor || '#8BA888' }}>
+              {loggedInUser?.name.charAt(0)}
+            </div>
+            <div className="text-left font-sans col-span-2">
+              <div className="font-extrabold text-earth-dark text-[11px] leading-tight">{loggedInUser?.name}</div>
+              <div className="text-[9px] text-earth-text/75 font-semibold flex items-center gap-1">
+                <span className="font-mono font-bold text-earth-primary">{loggedInUser?.id}</span> • 
+                <span className={`px-1 rounded-sm text-[8px] font-black ${
+                  activeRole === 'manager' ? 'bg-orange-100 text-orange-850' : 'bg-blue-100 text-blue-850'
+                }`}>
+                  {activeRole === 'manager' ? 'ผู้จัดการ' : 'พนักงาน'}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <button
-            onClick={() => setGasPorterOpen(true)}
-            className="px-3.5 py-2 rounded-lg text-xs font-bold bg-[#E2EBE0] hover:bg-[#D4E0D1] text-[#2E5E2A] transition-all flex items-center gap-1.5 cursor-pointer border border-[#8BA888]/30 hover:scale-[1.01] active:scale-95"
-            title="นำเสนอออกโค้ดเพื่อติดตั้งบน Google Apps Script"
+            onClick={() => {
+              setChangePasswordError('');
+              setChangePasswordSuccess('');
+              setIsChangePasswordOpen(true);
+            }}
+            className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
+            title="เปลี่ยนรหัสผ่านส่วนตัวเข้าใช้งานระบบ"
           >
-            <FileCode className="w-4 h-4 text-[#2E5E2A]" />
-            <span className="hidden lg:inline">ส่งออกโค้ด Google Apps Script</span>
-            <span className="inline lg:hidden">GAS Porter</span>
+            <Key className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+            <span className="hidden md:inline">เปลี่ยนรหัสผ่าน 🔑</span>
           </button>
 
-          <span className="text-earth-border/60 select-none">|</span>
-
           <button
-            id="role-switch-btn-employee"
-            onClick={() => setActiveRole('employee')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeRole === 'employee' 
-                ? 'bg-earth-primary text-white shadow-sm' 
-                : 'text-earth-text hover:bg-white/40'
-            }`}
+            id="btn-logout"
+            onClick={() => setLoggedInUser(null)}
+            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
           >
-            <User className="w-3.5 h-3.5" />
-            <span>พนักงานขออนุมัติ & เช็คอิน</span>
-          </button>
-          <button
-            id="role-switch-btn-manager"
-            onClick={() => setActiveRole('manager')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeRole === 'manager' 
-                ? 'bg-earth-primary text-white shadow-sm' 
-                : 'text-earth-text hover:bg-white/40'
-            }`}
-          >
-            <MonitorCheck className="w-3.5 h-3.5" />
-            <span>หัวหน้างาน / คุมระบบ</span>
+            <LogOut className="w-3.5 h-3.5 text-rose-700" />
+            <span className="hidden sm:inline">ออกจากระบบ</span>
           </button>
         </div>
       </header>
@@ -664,19 +1022,10 @@ export default function App() {
       {/* SUB-HEADER USER ENVIRONMENT SUMMARY SIMULATOR INFO */}
       <section className="bg-white/60 py-3 px-6 md:px-12 border-b border-earth-border flex flex-wrap justify-between items-center gap-4 text-xs text-earth-text">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="bg-white px-3 py-1.5 rounded-xl border border-earth-border flex items-center gap-1.5 shadow-2xs">
+          <div className="bg-white px-3 py-1.5 rounded-xl border border-earth-border flex items-center gap-1.5 shadow-2xs text-xs font-semibold">
             <span className="w-2.5 h-2.5 rounded-full bg-earth-primary inline-block animate-pulse" />
-            <span className="text-earth-dark font-bold">พนักงานจำลอง:</span>
-            <select
-              id="simulated-employee-selector"
-              value={simulatedEmployeeId}
-              onChange={(e) => setSimulatedEmployeeId(e.target.value)}
-              className="bg-transparent border-none text-earth-dark font-black outline-none cursor-pointer p-0 ml-1 font-sans"
-            >
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.name} ({emp.role.split(' (')[0]})</option>
-              ))}
-            </select>
+            <span className="text-earth-dark font-extrabold">พนักงานลงบันทึก:</span>
+            <span className="text-earth-dark font-black">{loggedInUser?.name} (<span className="font-mono">{loggedInUser?.id}</span>)</span>
           </div>
 
           <div className="flex items-center gap-1.5 bg-white border border-earth-border px-3 py-1.5 rounded-xl shadow-2xs">
@@ -1005,6 +1354,25 @@ export default function App() {
                             />
                           </div>
                         )}
+
+                        <div className="border-t border-earth-border/40 my-2 pt-2">
+                          <label className="block text-[10px] uppercase font-extrabold text-earth-dark mb-1 flex items-center gap-1">
+                            <Lock className="w-3.5 h-3.5 text-earth-primary" />
+                            <span>รหัสผ่านตั้งต้นเข้าใช้งานระบบ * (Initial Password)</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="เช่น 1234"
+                            value={newEmpPassword}
+                            onChange={(e) => {
+                              setNewEmpPassword(e.target.value);
+                              setNewEmpSuccessMsg('');
+                            }}
+                            className="w-full bg-white border border-earth-border rounded-xl px-2.5 py-1.5 font-bold outline-none font-mono shadow-3xs text-xs"
+                          />
+                          <p className="text-[9px] text-earth-text/60 mt-0.5">พนักงานปฏิบัติการสามารถสลับโปรไฟล์ความปลอดภัยและแก้ไขรหัสผ่านใหม่ด้วยตนเองได้ทุกเมื่อ</p>
+                        </div>
                       </div>
 
                       {newEmpSuccessMsg && (
@@ -1982,8 +2350,109 @@ export default function App() {
 
       </main>
 
-      {/* GOOGLE APPS SCRIPT CODE PORTAL OVERLAY */}
-      <GASPorter isOpen={gasPorterOpen} onClose={() => setGasPorterOpen(false)} />
+      {/* CHANGE PASSWORD OVERLAY */}
+      {isChangePasswordOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-earth-border max-w-md w-full p-6 md:p-8 shadow-2xl relative space-y-6">
+            <button
+              onClick={() => setIsChangePasswordOpen(false)}
+              className="absolute top-4 right-4 text-earth-text/60 hover:text-earth-dark p-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition cursor-pointer"
+            >
+              ✕
+            </button>
+            
+            <div className="space-y-2 border-b border-earth-border pb-3 text-left">
+              <h3 className="font-extrabold text-earth-dark text-lg flex items-center gap-2">
+                <Lock className="w-5 h-5 text-amber-600" />
+                <span>เปลี่ยนรหัสผ่านส่วนตัวเข้าใช้งานระบบ</span>
+              </h3>
+              <p className="text-xs text-earth-text/80">
+                เรียนคุณ <span className="font-bold text-earth-dark">{loggedInUser?.name}</span> (<span className="font-mono">{loggedInUser?.id}</span>) คุณสามารถกำหนดรหัสผ่านใหม่เพื่อความปลอดภัยของบัญชีท่านได้ที่นี่
+              </p>
+            </div>
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-left">
+              {changePasswordError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold flex items-center gap-2 animate-shake">
+                  <AlertTriangle className="w-4 h-4 text-red-650 shrink-0" />
+                  <span>{changePasswordError}</span>
+                </div>
+              )}
+
+              {changePasswordSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold leading-relaxed space-y-1">
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-black">สำเร็จ!</span>
+                  </p>
+                  <p>{changePasswordSuccess}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] uppercase font-black text-earth-dark tracking-wider mb-1 flex items-center gap-1">
+                  <Key className="w-3.5 h-3.5 text-earth-primary" />
+                  <span>รหัสผ่านปัจจุบัน *</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="ป้อนรหัสเดิม (รหัสผ่านเริ่มแรกคือ 1234)"
+                  required
+                  value={currentPasswordInput}
+                  onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                  className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-earth-primary focus:ring-1 focus:ring-earth-primary shadow-3xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-black text-earth-dark tracking-wider mb-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-earth-primary" />
+                  <span>รหัสผ่านใหม่ *</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="ความยาวอย่างน้อย 4 ตัวอักษร"
+                  required
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-earth-primary focus:ring-1 focus:ring-earth-primary shadow-3xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-black text-earth-dark tracking-wider mb-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#C26F49]" />
+                  <span>ยืนยันรหัสผ่านใหม่ *</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง"
+                  required
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:border-earth-primary focus:ring-1 focus:ring-earth-primary shadow-3xs"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChangePasswordOpen(false)}
+                  className="flex-1 py-2.5 bg-[#F2EFE9] hover:bg-[#E8E4DB] border border-earth-border text-earth-dark rounded-xl text-xs font-bold cursor-pointer transition select-none text-center"
+                >
+                  ปิดหน้าต่าง
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-earth-primary hover:bg-[#7D9A7A] text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-98 text-center"
+                >
+                  📝 ยืนยันเปลี่ยนรหัส
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER METADATA SYSTEM */}
       <footer className="bg-[#433E3B] border-t border-earth-border/20 text-white/65 text-xs py-8 px-6 text-center space-y-3 mt-12">

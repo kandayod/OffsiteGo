@@ -12,7 +12,12 @@ export const MOCK_EMPLOYEES: Employee[] = [
     role: 'ผู้ควบคุมการแข่งขัน (Tournament Judge)',
     email: 'somsak.r@kidzandkitz.co.th',
     department: 'แผนกส่งเสริมกิจกรรมและการตลาด (Events & Marketing)',
-    avatarColor: 'bg-emerald-500'
+    avatarColor: '#10B981',
+    workGroup: 'adhoc',
+    position: 'employee',
+    password: '1234',
+    approverId: 'KK0031',
+    approverName: 'กานดา ยอดรัก (ฝู้จัดการฝ่ายสำนักงาน)'
   },
   {
     id: 'EMP002',
@@ -20,7 +25,12 @@ export const MOCK_EMPLOYEES: Employee[] = [
     role: 'เจ้าหน้าที่บริหารงานขาย (Sales Supervisor)',
     email: 'nattapong.k@kidzandkitz.co.th',
     department: 'แผนกดูแลจัดจำหน่ายร้านค้า (Distributor Relations)',
-    avatarColor: 'bg-blue-500'
+    avatarColor: '#3B82F6',
+    workGroup: 'adhoc',
+    position: 'employee',
+    password: '1234',
+    approverId: 'KK0031',
+    approverName: 'กานดา ยอดรัก (ฝู้จัดการฝ่ายสำนักงาน)'
   },
   {
     id: 'EMP003',
@@ -28,7 +38,12 @@ export const MOCK_EMPLOYEES: Employee[] = [
     role: 'เจ้าหน้าที่สาธิตสินค้า (Product Demonstrator)',
     email: 'preeda.s@kidzandkitz.co.th',
     department: 'แผนกส่งเสริมกิจกรรมการเล่น (Community Play)',
-    avatarColor: 'bg-amber-500'
+    avatarColor: '#F59E0B',
+    workGroup: 'regular',
+    position: 'employee',
+    password: '1234',
+    approverId: 'KK0031',
+    approverName: 'กานดา ยอดรัก (ฝู้จัดการฝ่ายสำนักงาน)'
   },
   {
     id: 'KK0031',
@@ -36,7 +51,10 @@ export const MOCK_EMPLOYEES: Employee[] = [
     role: 'ฝู้จัดการฝ่ายสำนักงาน (Admin Manager)',
     email: 'admin.kk@kidzandkitz.co.th',
     department: ' ฝ่ายสำนักงาน ',
-    avatarColor: 'bg-purple-500'
+    avatarColor: '#8B5CF6',
+    workGroup: 'adhoc',
+    position: 'manager',
+    password: '1234'
   }
 ];
 
