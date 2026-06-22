@@ -206,7 +206,7 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
                 : 'text-earth-dark hover:bg-earth-sidebar/80'
             }`}
           >
-            📅 2. แผนล่วงหน้า (รายสัปดาห์/เดือน)
+            📅 2. แผนล่วงหน้า
           </button>
         </div>
       </div>
@@ -487,7 +487,7 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
                             <div>
                               <p className="font-extrabold text-earth-dark text-xs">{dpObj.employeeName}</p>
                               <p className="text-[10px] text-earth-text/80 font-black">
-                                {dpObj.plan.title} ({dpObj.plan.type === 'weekly' ? 'รายสัปดาห์' : 'รายเดือน'})
+                                {dpObj.plan.title}
                               </p>
                             </div>
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${

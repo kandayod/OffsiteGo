@@ -281,7 +281,7 @@ export default function App() {
     }
     return 'employee'; // default is employee view
   });
-  const [employeeActiveTab, setEmployeeActiveTab] = useState<'daily' | 'planning' | 'calendar'>('daily');
+  const [employeeActiveTab, setEmployeeActiveTab] = useState<'planning' | 'calendar'>('planning');
   const [simulatedEmployeeId, setSimulatedEmployeeId] = useState<string>(() => {
     const saved = localStorage.getItem('offsite_logged_in_user');
     if (saved) {
@@ -816,6 +816,53 @@ export default function App() {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return Math.round(R * c); // returns distance in meters
+  };
+
+  const approvePlanAndGenerateRequests = (planId: string, approvedByString: string) => {
+    let targetPlan: OffSitePlan | null = null;
+    
+    setPlans(prev => prev.map(p => {
+      if (p.id === planId) {
+        targetPlan = p;
+        return {
+          ...p,
+          status: 'approved',
+          approvedBy: approvedByString,
+          approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
+        };
+      }
+      return p;
+    }));
+
+    if (targetPlan) {
+      const planToGen = targetPlan as OffSitePlan;
+      const emp = employees.find(e => e.id === planToGen.employeeId);
+      const newReqs: OffSiteRequest[] = planToGen.plannedDates.map((pd, index) => {
+        // Avoid duplicate request generation
+        const exists = requests.some(r => r.employeeId === planToGen.employeeId && r.date === pd.date);
+        if (exists) return null;
+        
+        return {
+          id: `REQ-${Date.now().toString().slice(-6)}-${index}-${Math.floor(Math.random() * 1000)}`,
+          employeeId: planToGen.employeeId,
+          employeeName: planToGen.employeeName,
+          role: emp?.role || 'พนักงานปฏิบัติการ',
+          date: pd.date,
+          startTime: pd.startTime,
+          endTime: pd.endTime,
+          location: pd.location,
+          purpose: pd.purpose,
+          status: 'approved',
+          approvedBy: approvedByString,
+          approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5),
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+      }).filter(Boolean) as OffSiteRequest[];
+      
+      if (newReqs.length > 0) {
+        setRequests(prev => [...newReqs, ...prev]);
+      }
+    }
   };
 
   // Perform GPS Check-In operations
@@ -1355,7 +1402,7 @@ export default function App() {
               requests={myScopeRequests}
               selectedMonth={selectedMonth}
               employees={employees}
-              plans={myScopePlans}
+              plans={plans}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1759,17 +1806,7 @@ export default function App() {
                                   }
                                 }
 
-                                setPlans(prev => prev.map(p => {
-                                  if (p.id === plan.id) {
-                                    return {
-                                      ...p,
-                                      status: 'approved',
-                                      approvedBy: loggedInUser ? `${loggedInUser.name} (${loggedInUser.role})` : 'ผู้อนุมัติ',
-                                      approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
-                                    };
-                                  }
-                                  return p;
-                                }));
+                                 approvePlanAndGenerateRequests(plan.id, loggedInUser ? `${loggedInUser.name} (${loggedInUser.role})` : 'ผู้อนุมัติ');
                               }}
                               className="px-4 py-1.5 bg-earth-primary hover:bg-[#799976] text-white rounded-lg transition font-bold cursor-pointer active:scale-95 shadow-2xs text-[10.5px]"
                             >
@@ -2077,7 +2114,7 @@ export default function App() {
                   requests={myScopeRequests}
                   selectedMonth={selectedMonth}
                   employees={employees}
-                  plans={myScopePlans}
+                  plans={plans}
                 />
 
                 {/* PLAN APPROVALS DESK */}
@@ -2170,17 +2207,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => {
-                                setPlans(prev => prev.map(p => {
-                                  if (p.id === plan.id) {
-                                    return {
-                                      ...p,
-                                      status: 'approved',
-                                      approvedBy: `${loggedInUser?.name || 'ผู้ดูแลระบบ'} (ฝ่ายคุมระบบ)`,
-                                      approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
-                                    };
-                                  }
-                                  return p;
-                                }));
+                                 approvePlanAndGenerateRequests(plan.id, `${loggedInUser?.name || 'ผู้ดูแลระบบ'} (ฝ่ายคุมระบบ)`);
                               }}
                               className="px-4 py-1.5 bg-earth-primary hover:bg-[#799976] text-white rounded-lg transition font-bold cursor-pointer active:scale-95 shadow-2xs text-[10.5px]"
                             >
@@ -2506,31 +2533,17 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">สิทธิ์เข้าระบบ *</label>
-                          <select
-                            value={editEmpPosition}
-                            onChange={(e) => setEditEmpPosition(e.target.value as 'employee' | 'manager' | 'admin')}
-                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
-                          >
-                            <option value="employee">👨‍💼 พนักงานปฏิบัติงาน</option>
-                            <option value="manager">👑 หัวหน้างาน / ผู้จัดการ</option>
-                            <option value="admin">🔒 ผู้คุมระบบสูงสุด</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-amber-900 mb-1">กลุ่มโครงสร้างงาน</label>
-                          <select
-                            value={editEmpWorkGroup}
-                            onChange={(e) => setEditEmpWorkGroup(e.target.value as 'regular' | 'adhoc')}
-                            className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
-                          >
-                            <option value="adhoc">💼 พนักงานรายครั้งปกติ</option>
-                            <option value="regular">📅 ทำงานประจำล่วงหน้า</option>
-                          </select>
-                        </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1">สิทธิ์เข้าระบบ *</label>
+                        <select
+                          value={editEmpPosition}
+                          onChange={(e) => setEditEmpPosition(e.target.value as 'employee' | 'manager' | 'admin')}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2 py-1.5 font-bold cursor-pointer outline-none"
+                        >
+                          <option value="employee">👨‍💼 พนักงานปฏิบัติงาน</option>
+                          <option value="manager">👑 หัวหน้างาน / ผู้จัดการ</option>
+                          <option value="admin">🔒 ผู้คุมระบบสูงสุด</option>
+                        </select>
                       </div>
 
                       {editEmpPosition === 'employee' ? (
@@ -2682,35 +2695,18 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">แผนกต้นสังกัด *</label>
-                          <input
-                            type="text"
-                            required
-                            value={newEmpDept}
-                            onChange={(e) => {
-                              setNewEmpDept(e.target.value);
-                              setNewEmpSuccessMsg('');
-                            }}
-                            className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-earth-[#8BA888] mb-1">กลุ่มตารางปฏิบัติงาน</label>
-                          <select
-                            value={newEmpWorkGroup}
-                            onChange={(e) => {
-                              setNewEmpWorkGroup(e.target.value as 'regular' | 'adhoc');
-                              setNewEmpSuccessMsg('');
-                            }}
-                            className="w-full bg-white border border-[#8BA888]/40 rounded-xl px-2 py-1.5 font-bold outline-none cursor-pointer"
-                          >
-                            <option value="adhoc">💼 พนักงานรายครั้งปกติ</option>
-                            <option value="regular">📅 ทำงานประจำล่วงหน้า</option>
-                          </select>
-                        </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] uppercase font-bold text-earth-dark mb-1">แผนกต้นสังกัด *</label>
+                        <input
+                          type="text"
+                          required
+                          value={newEmpDept}
+                          onChange={(e) => {
+                            setNewEmpDept(e.target.value);
+                            setNewEmpSuccessMsg('');
+                          }}
+                          className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 font-bold"
+                        />
                       </div>
 
                       <div className="p-3 bg-earth-sand/20 rounded-2xl border border-earth-border/40 space-y-3">
@@ -2909,36 +2905,10 @@ export default function App() {
                                   </div>
                                 )}
                               </div>
-
-                              <div className="pt-1 select-none">
-                                <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                                  isRegGroup 
-                                    ? 'bg-[#E2EBE0] text-[#2E5E2A] border-[#8BA888]/40' 
-                                    : 'bg-amber-50 text-amber-800 border-amber-200'
-                                }`}>
-                                  {isRegGroup ? 'ทำงานประจำล่วงหน้า (ต้องยื่นแผน)' : 'ทำงานรายครั้งปกติ'}
-                                </span>
-                              </div>
                             </div>
 
                             {/* CTA Action Tools */}
                             <div className="flex md:flex-col gap-2 w-full md:w-auto shrink-0 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEmployees(prev => prev.map(e => {
-                                    if (e.id === emp.id) {
-                                      return { ...e, workGroup: e.workGroup === 'regular' ? 'adhoc' : 'regular' };
-                                    }
-                                    return e;
-                                  }));
-                                }}
-                                className="bg-white hover:bg-earth-sidebar text-[#6B6359] text-[10px] font-bold px-2.5 py-1.5 rounded-xl border border-earth-border cursor-pointer select-none whitespace-nowrap text-center flex-1 md:flex-initial shadow-3xs"
-                                title="สลับกลุ่มโครงสร้างงานประจำ/รายครั้ง"
-                              >
-                                🔄 สลับกลุ่มงาน
-                              </button>
-                              
                               <button
                                 type="button"
                                 onClick={() => startEditingEmployee(emp)}
@@ -2978,18 +2948,6 @@ export default function App() {
             <div className="flex bg-white/70 border border-earth-border p-1 rounded-2xl w-full max-w-xl shadow-2xs">
               <button
                 type="button"
-                onClick={() => setEmployeeActiveTab('daily')}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
-                  employeeActiveTab === 'daily'
-                    ? 'bg-earth-primary text-white shadow-xs'
-                    : 'text-[#6B6359] hover:bg-white/40'
-                }`}
-              >
-                <Clock className="w-4.5 h-4.5" />
-                <span>ลงเวลานอกสถานที่รายวัน</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setEmployeeActiveTab('planning')}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
                   employeeActiveTab === 'planning'
@@ -2998,7 +2956,7 @@ export default function App() {
                 }`}
               >
                 <CalendarRange className="w-4.5 h-4.5" />
-                <span>ยื่นร่างและติดตามแผนล่วงหน้า</span>
+                <span>📝 ยื่นร่างและติดตามแผนล่วงหน้า</span>
               </button>
               <button
                 type="button"
@@ -3010,31 +2968,520 @@ export default function App() {
                 }`}
               >
                 <Calendar className="w-4.5 h-4.5" />
-                <span>ปฏิทินปฏิบัติงานและคำขอของคุณ</span>
+                <span>📅 ปฏิทินปฏิบัติงานและแผนล่วงหน้า</span>
               </button>
             </div>
 
             {employeeActiveTab === 'planning' && (
-              <EmployeePlanning 
-                currentSimEmployee={currentSimEmployee}
-                plans={plans}
-                setPlans={setPlans}
-                popularLocations={POPULAR_LOCATIONS}
-              />
+              <div className="space-y-8 animate-fadeIn">
+                <EmployeePlanning 
+                  currentSimEmployee={currentSimEmployee}
+                  plans={plans}
+                  setPlans={setPlans}
+                  popularLocations={POPULAR_LOCATIONS}
+                />
+
+                {/* ส่วนการลงเวลาการปฏิบัติงานนอกสถานที่รายวันและการบันทึกเวลา */}
+                <div className="border-t-2 border-dashed border-earth-border/60 pt-8 space-y-6">
+                  <div className="bg-[#FAF8F5] border border-earth-border rounded-3xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-3xs">
+                    <div>
+                      <h3 className="font-extrabold text-earth-dark text-base md:text-lg flex items-center gap-2">
+                        <CheckCircle className="w-5.5 h-5.5 text-earth-primary" />
+                        <span>📍 บันทึกเวลางานนอกสถานที่และการรายงานผลรายวัน (Daily Check-In & Action Panel)</span>
+                      </h3>
+                      <p className="text-xs text-earth-text/80 font-medium">เมื่อยื่นแผนปฏิบัติงานล่วงหน้าได้รับการจัดสรร/อนุมัติเรียบร้อยแล้ว ท่านสามารถเช็คอินและกรอกบันทึกข้อมูลการทำงานได้ตามเป้าหมายรายวัน</p>
+                    </div>
+                    <span className="bg-[#E2EBE0] text-[#2E5E2A] text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                      PLAN-DRIVEN GEOLOCATION WORKFLOW
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Left Column: Request Form */}
+                    <div className="lg:col-span-1 space-y-6">
+                      <div id="employee-request-form-card" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                        <div className="border-b border-earth-border pb-3">
+                          <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                            <Send className="w-5 h-5 text-earth-primary" />
+                            <span>ขออนุมัติทำงานนอกสถานที่ (Off-Site Request Form)</span>
+                          </h3>
+                          <p className="text-xs text-earth-text/80">ระบุตำแหน่ง วันที่ และสาเหตุเพื่อเริ่มภารกิจและการตรวจพิกัดเช็คอิน</p>
+                        </div>
+
+                        {formSuccessMessage && (
+                          <div className="p-3 bg-[#E2EBE0] border border-earth-primary/50 text-[#2E5E2A] text-xs rounded-xl font-bold animate-pulse">
+                            {formSuccessMessage}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleRequestSubmit} className="space-y-4">
+                          {/* Employee identification */}
+                          <div>
+                            <label className="block text-xs font-bold text-earth-text mb-1">พนักงานผู้ส่งคำขอ</label>
+                            <div className="bg-[#FAF8F5] px-3 py-2 rounded-xl text-earth-dark font-bold border border-earth-border">
+                              {currentSimEmployee.name} ({currentSimEmployee.id})
+                            </div>
+                          </div>
+
+                          {/* Date Picker */}
+                          <div>
+                            <label className="block text-xs font-bold text-earth-text mb-1">วันที่ต้องการไปปฏิบัติงาน</label>
+                            <input
+                              id="form-date-input"
+                              type="date"
+                              value={formDate}
+                              onChange={(e) => setFormDate(e.target.value)}
+                              className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-3 py-2 font-mono font-bold text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
+                              required
+                            />
+                          </div>
+
+                          {/* Hours Selection */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-earth-text mb-1">เวลาเข้าปฏิบัติงาน</label>
+                              <input
+                                id="form-start-time"
+                                type="time"
+                                value={formStartTime}
+                                onChange={(e) => setFormStartTime(e.target.value)}
+                                className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2 py-2 font-mono text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-earth-text mb-1">เวลาสิ้นสุดภารกิจ</label>
+                              <input
+                                id="form-end-time"
+                                type="time"
+                                value={formEndTime}
+                                onChange={(e) => setFormEndTime(e.target.value)}
+                                className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2 py-2 font-mono text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          {/* Location Selection toggle */}
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-xs font-bold text-earth-text">พิกัดทางกายภาพเป้าหมาย</label>
+                              <button
+                                type="button"
+                                onClick={() => setIsCustomLocToggle(!isCustomLocToggle)}
+                                className="text-[11px] font-bold text-earth-primary hover:underline hover:text-[#799976]"
+                              >
+                                {isCustomLocToggle ? 'ใช้รายชื่อห้างและร้านที่กำหนด' : 'ระบุพิกัดทางภูมิเอง'}
+                              </button>
+                            </div>
+
+                            {!isCustomLocToggle ? (
+                              <select
+                                id="form-location-preset"
+                                value={formLocationPreset}
+                                onChange={(e) => setFormLocationPreset(e.target.value)}
+                                className="w-full bg-white border border-earth-border rounded-xl px-3 py-2 text-earth-dark font-semibold outline-none focus:ring-1 focus:ring-earth-primary text-xs cursor-pointer"
+                              >
+                                {POPULAR_LOCATIONS.map((loc, idx) => (
+                                  <option key={idx} value={loc.name}>{loc.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="space-y-2 p-3 bg-earth-sidebar/40 border border-earth-border rounded-xl">
+                                <div>
+                                  <input
+                                    id="custom-location-name"
+                                    type="text"
+                                    placeholder="ระบุชื่อสถานที่ (เช่น อาคารสำนักงานใหญ่)"
+                                    value={formCustomLocationName}
+                                    onChange={(e) => setFormCustomLocationName(e.target.value)}
+                                    className="w-full bg-white border border-earth-border rounded-lg px-2.5 py-1.5 text-xs inline-block text-earth-dark"
+                                    required={isCustomLocToggle}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <input
+                                    id="custom-location-latitude"
+                                    type="text"
+                                    placeholder="ละติจูด (Lat)"
+                                    value={formCustomLat}
+                                    onChange={(e) => setFormCustomLat(e.target.value)}
+                                    className="bg-white border border-earth-border rounded-lg px-2.5 py-1.5 font-mono text-earth-dark text-xs"
+                                    required={isCustomLocToggle}
+                                  />
+                                  <input
+                                    id="custom-location-longitude"
+                                    type="text"
+                                    placeholder="ลองจิจูด (Lng)"
+                                    value={formCustomLng}
+                                    onChange={(e) => setFormCustomLng(e.target.value)}
+                                    className="bg-white border border-earth-border rounded-lg px-2.5 py-1.5 font-mono text-earth-dark text-xs"
+                                    required={isCustomLocToggle}
+                                  />
+                                </div>
+                                <div>
+                                  <input
+                                    id="custom-location-address"
+                                    type="text"
+                                    placeholder="ที่อยู่โดยสังเขปเพื่อค้นหาออฟไลน์"
+                                    value={formCustomAddress}
+                                    onChange={(e) => setFormCustomAddress(e.target.value)}
+                                    className="w-full bg-white border border-earth-border rounded-lg px-2.5 py-1.5 text-xs font-serif text-earth-dark"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Purpose description field */}
+                          <div>
+                            <label className="block text-xs font-bold text-earth-text mb-1">เหตุผลและวัตถุประสงค์ในการปฏิบัติงาน</label>
+                            <textarea
+                              id="form-purpose"
+                              value={formPurpose}
+                              onChange={(e) => setFormPurpose(e.target.value)}
+                              placeholder="ระบุกิจกรรม เช่น คุมงานจัดแข่ง, อบรมพนักงานคู่ค้า..."
+                              className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-earth-primary outline-none font-serif min-h-[90px] text-earth-dark"
+                              required
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full bg-earth-primary hover:bg-[#799976] text-white font-sans text-xs font-bold py-3 rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95 duration-150 text-center"
+                          >
+                            <Send className="w-4 h-4" />
+                            <span>ยื่นขออนุญาตลงพื้นที่จริง</span>
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+
+                    {/* Right Column: List & Map & Reports */}
+                    <div className="lg:col-span-2 space-y-6">
+                      
+                      {/* Active list of requests representing my workflow */}
+                      <div id="employee-workflow-history-card-integrated" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                        <div className="flex justify-between items-center border-b border-earth-border pb-3 flex-wrap gap-2">
+                          <div>
+                            <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                              <History className="w-5 h-5 text-earth-primary" />
+                              <span>ประวัติคำขอลงพื้นที่และการเช็คอิน/เช็คเอาท์ตามแผน</span>
+                            </h3>
+                            <p className="text-xs text-earth-text/80">ตรวจจบเวลาเช็คอินและเข้างานด้วย GPS ที่ได้รับการรับรองทางพิกัดภูมิศาสตร์</p>
+                          </div>
+
+                          {/* GPS Matching Settings helper */}
+                          <div className="flex items-center gap-1.5 bg-[#FAF8F5] p-1.5 rounded-xl border border-earth-border text-xs">
+                            <span className="text-[10px] text-earth-text font-bold">พิกัดจำลอง GPS:</span>
+                            <button
+                              onClick={() => setSimulatedGeoMatched(true)}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${simulatedGeoMatched ? 'bg-earth-primary text-white shadow-xs' : 'bg-earth-sidebar text-[#6B6359]'}`}
+                            >
+                              ตรงจุดพอดี (0 เมตร)
+                            </button>
+                            <button
+                              onClick={() => setSimulatedGeoMatched(false)}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${!simulatedGeoMatched ? 'bg-earth-secondary text-white shadow-xs' : 'bg-earth-sidebar text-[#6B6359]'}`}
+                            >
+                              คำนวณจริง
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          {myRequests.map((req) => {
+                            const isApproved = req.status === 'approved';
+                            const isRejected = req.status === 'rejected';
+                            const hasCheckedIn = !!req.checkIn;
+                            const hasCheckedOut = !!req.checkOut;
+
+                            return (
+                              <div 
+                                key={req.id} 
+                                className={`p-4 rounded-2xl border transition-all space-y-3.5 relative overflow-hidden ${
+                                  hasCheckedOut 
+                                    ? 'bg-[#FAF8F5]/60 border-earth-border opacity-95' 
+                                    : isApproved 
+                                    ? 'bg-[#E2EBE0]/40 border-earth-primary/30 ring-1 ring-[#CBDBC8]' 
+                                    : isRejected 
+                                    ? 'bg-[#FCF5F2] border-earth-secondary/20' 
+                                    : 'bg-white border-earth-border'
+                                }`}
+                              >
+                                {/* Upper status ribbon */}
+                                <div className="flex justify-between items-start flex-wrap gap-2">
+                                  <div className="space-y-0.5">
+                                    <span className="font-mono text-[9px] font-bold text-earth-text tracking-widest bg-earth-border/40 px-1.5 py-0.5 rounded">{req.id}</span>
+                                    <h4 className="font-bold text-earth-dark text-sm flex items-center gap-1 mt-1">
+                                      <span>📍 {req.location.name}</span>
+                                    </h4>
+                                    <p className="text-earth-text text-xs">{req.location.address}</p>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-mono font-bold text-earth-text">{req.date}</span>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold leading-none ${
+                                      isApproved 
+                                        ? 'bg-[#CBDBC8] text-[#2E5E2A]' 
+                                        : isRejected 
+                                        ? 'bg-[#F2D7CD] text-[#803C21]' 
+                                        : 'bg-[#E6D5B8] text-earth-dark'
+                                    }`}>
+                                      {isApproved ? 'อนุมัติแล้ว' : isRejected ? 'ปฏิเสธ' : 'รอพิจารณา'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Mid detailed task information */}
+                                <div className="text-xs bg-white/70 p-3 rounded-xl border border-earth-border/40 space-y-1.5">
+                                  <p><span className="font-bold text-earth-text font-serif">กำหนดเวลา:</span> <span className="font-mono font-bold text-earth-dark">{req.startTime} น. - {req.endTime} น.</span></p>
+                                  <p><span className="font-bold text-earth-text font-serif">วัตถุประสงค์งาน:</span> <span className="text-earth-dark">"{req.purpose}"</span></p>
+                                  
+                                  {req.approvedBy && (
+                                    <p className="text-[10px] text-[#8C8375] font-mono italic">
+                                      อนุมัติโดย: {req.approvedBy} เมื่อวันที่ {req.approvedAt}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Action buttons under Approved status */}
+                                {isApproved && (
+                                  <div className="space-y-3.5 border-t border-earth-border/40 pt-3 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+                                    
+                                    {/* Check-In Logging status view */}
+                                    {!hasCheckedIn ? (
+                                      <div className="flex-1">
+                                        <p className="text-[11px] text-earth-text flex items-center gap-1 font-bold">
+                                          <Clock className="w-3.5 h-3.5 text-earth-primary" />
+                                          <span>เข้าสถานที่ปฏิบัติกิจแล้ว? กรุณาทำการยืนยันพิกัด</span>
+                                        </p>
+                                        <button
+                                          onClick={() => triggerCheckIn(req.id, req.location.lat, req.location.lng)}
+                                          className="mt-1.5 w-full bg-[#8BA888] hover:bg-[#799976] text-white font-sans text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition active:scale-95"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                          <span>เช็คอินเข้างาน (Check-In) ด้วย GPS</span>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-[#E2EBE0]/50 p-2.5 rounded-xl border border-earth-primary/30 text-xs flex items-center justify-between flex-1">
+                                        <div className="space-y-0.5">
+                                          <p className="text-[#2E5E2A] font-bold flex items-center gap-1">
+                                            <CheckCircle className="w-3.5 h-3.5 text-earth-primary" />
+                                            <span>เช็คอินเข้างานเสร็จสมบูรณ์</span>
+                                          </p>
+                                          <p className="text-[10px] font-mono text-earth-text/80">เวลาบันทึก: {req.checkIn?.time} น. | ระยะห่างอุปสรรค: {req.checkIn?.distanceMeters} เมตร</p>
+                                        </div>
+                                        <span className="bg-[#CBDBC8] text-[#2E5E2A] font-mono font-bold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide">Checked In</span>
+                                      </div>
+                                    )}
+
+                                    {/* Check-Out Logging status view */}
+                                    {hasCheckedIn && (
+                                      <div className="flex-1">
+                                        {!hasCheckedOut ? (
+                                          <div>
+                                            <p className="text-[11px] text-earth-text font-bold">เสร็จภารกิจ ณ พิกัดแล้ว? บันทึกรายงานเพื่อเช็คเอาท์ออก</p>
+                                            <button
+                                              onClick={() => setCheckoutRequestId(req.id)}
+                                              className="mt-1.5 w-full bg-[#433E3B] hover:bg-[#34302C] text-[#E6D5B8] font-sans text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer border border-[#E6D5B8]/20 transition active:scale-95"
+                                            >
+                                              <Send className="w-4 h-4" />
+                                              <span>เขียนสรุปงาน & เช็คเอาท์ (Check-Out)</span>
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="bg-[#FAF8F5] p-2.5 rounded-xl border border-earth-border text-xs text-earth-dark space-y-1.5">
+                                            <p className="font-bold flex items-center gap-1 text-earth-primary">
+                                              <CheckCircle className="w-3.5 h-3.5" />
+                                              <span>เช็คเอาท์และสรุปเสร็จสิ้นภารกิจแล้ว</span>
+                                            </p>
+                                            <p className="text-[10px] font-mono text-earth-text">เวลาบันทึก: {req.checkOut?.time} น.</p>
+
+                                            {req.checkOut?.workImage && (
+                                              <div className="rounded-lg overflow-hidden border border-earth-border/60 bg-gray-100 max-w-full my-1.5 self-start shadow-2xs">
+                                                <img 
+                                                  src={req.checkOut.workImage} 
+                                                  alt="Evidence Work" 
+                                                  className="max-h-20 w-auto object-contain cursor-zoom-in transition-transform hover:scale-105"
+                                                  onClick={() => window.open(req.checkOut?.workImage, '_blank')}
+                                                  referrerPolicy="no-referrer"
+                                                />
+                                              </div>
+                                            )}
+
+                                            <p className="text-[11px] leading-tight font-serif italic text-earth-text/90 border-l border-earth-primary pl-2 mb-1">
+                                              ผลสำเร็จ: "{req.checkOut?.workSummary}"
+                                            </p>
+                                            {req.checkOut?.issueFound && req.checkOut.issueFound !== 'ไม่มีปัญหา' && (
+                                              <p className="text-[10px] text-earth-secondary font-bold">
+                                                ⚠️ อุปสรรค: "{req.checkOut.issueFound}" ({req.checkOut.issueResolved ? 'แก้ไขแล้วหน้างาน' : 'รอซัพพอร์ตเพิ่มเติม'})
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {myRequests.length === 0 && (
+                            <div className="text-center py-12 text-earth-text/60 border border-dashed border-earth-border rounded-3xl bg-white">
+                              <History className="w-10 h-10 text-earth-border mx-auto mb-2" />
+                              <p className="font-semibold text-sm">ไม่พบประวัติการลงทะเบียนจริง</p>
+                              <p className="text-xs mt-0.5">กรุณารอแผนงานอนุมัติแล้วขออนุญาตทำงานรายวันตามตำแหน่งทางฝั่งซ้าย</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Map simulation segment */}
+                      <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                        <h3 className="font-bold text-earth-dark text-base flex items-center gap-2 border-b border-earth-border pb-3">
+                          <Globe className="w-5 h-5 text-earth-primary" />
+                          <span>🗺️ แผนที่พิกัดยืนยันพาสการทำงานแบบเรียลไทม์ (Live Action Map)</span>
+                        </h3>
+                        <div className="h-[300px] rounded-2xl overflow-hidden border border-earth-border">
+                          <OfflineSimMap 
+                            requests={requests} 
+                            selectedEmployeeId={currentSimEmployee.id} 
+                          />
+                        </div>
+                        <p className="text-[10.5px] text-earth-text/70 italic text-center">แผนที่แสดงตำแหน่งและประวัติเช็คอินที่เกิดขึ้นจริงตามภูมิศาสตร์เป้าหมาย</p>
+                      </div>
+
+                      {/* Personal printing report template */}
+                      <div id="employee-report-card-integrated" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                        <div className="flex justify-between items-center border-b border-earth-border pb-3 flex-wrap gap-2">
+                          <div>
+                            <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                              <ClipboardList className="w-5 h-5 text-[#8BA888]" />
+                              <span>📊 สรุปผลรายงานปฏิบัติงานนอกสถานที่รายเดือนของคุณ</span>
+                            </h3>
+                            <p className="text-xs text-earth-text/80">ระบบลงรายงานสำหรับการจัดทำใบประเมินและเบิกสวัสดิการประจำประวัติในระบบ</p>
+                          </div>
+                          <span className="text-xs text-earth-primary font-bold bg-[#E2EBE0] border border-earth-border px-3 py-1 rounded-full uppercase tracking-wider text-[10px]">Official Copy</span>
+                        </div>
+                        <ReportTemplate
+                          selectedMonth={selectedMonth}
+                          requests={requests}
+                          selectedEmployeeId={currentSimEmployee.id}
+                          employees={employees}
+                        />
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {employeeActiveTab === 'calendar' && (
               <div className="space-y-6 animate-fadeIn">
+                {/* 📌 วันนี้: เช็คอิน/เช็คเอาท์ด่วน */}
+                {(() => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const todayReqs = requests.filter(r => r.employeeId === currentSimEmployee.id && r.date === todayStr && r.status === 'approved');
+                  
+                  return (
+                    <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                      <div className="border-b border-earth-border pb-3 flex justify-between items-center flex-wrap gap-2">
+                        <div>
+                          <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
+                            <Clock className="w-5 h-5 text-earth-primary" />
+                            <span>📌 รายการนอกสถานที่และการเช็คอินด่วน วันนี้ ({todayStr.split('-').reverse().join('/')})</span>
+                          </h3>
+                          <p className="text-xs text-earth-text/80">ระบบคัดสรรรายการปฏิบัติงานของคุณที่ผ่านการอนุมัติล่วงหน้าแล้วเพื่อให้ท่านตรวจจับ GPS เช็คอินได้ทันที</p>
+                        </div>
+                        <span className="bg-[#E2EBE0] text-[#2E5E2A] text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                          Real-Time GPS Tracker
+                        </span>
+                      </div>
+
+                      {todayReqs.length === 0 ? (
+                        <div className="text-center py-6 text-earth-text/60">
+                          <AlertTriangle className="w-8 h-8 text-amber-500/70 mx-auto mb-1.5" />
+                          <p className="font-semibold text-xs text-earth-dark">ไม่มีแผนกิจกรรมภายนอกที่ผ่านอนุมัติสำหรับวันนี้</p>
+                          <p className="text-[10px] mt-0.5">ท่านยังเสนอหัวข้อใน 'ยื่นร่างและติดตามแผนล่วงหน้า' ได้หรือปฏิบัติจัดพิกัดผ่านปฏิทิน</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {todayReqs.map(req => {
+                            const hasCheckedIn = !!req.checkIn;
+                            const hasCheckedOut = !!req.checkOut;
+                            
+                            return (
+                              <div key={req.id} className="p-4 rounded-2xl bg-[#FCFAF7] border border-earth-border/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:bg-[#F7F5F0]">
+                                <div className="space-y-1.5 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="bg-earth-primary/10 text-earth-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                                      อนุมัติแล้ว (Approved)
+                                    </span>
+                                    <span className="text-font-mono text-[10.5px] font-bold text-earth-dark">
+                                      ⏱️ {req.startTime} - {req.endTime} น.
+                                    </span>
+                                  </div>
+                                  <h4 className="font-black text-earth-dark text-sm flex items-center gap-1">
+                                    <span>📍 {req.location.name}</span>
+                                  </h4>
+                                  <p className="text-[11px] text-earth-text italic leading-relaxed">
+                                    วัตถุประสงค์นอกห้อง: "{req.purpose}"
+                                  </p>
+                                </div>
+
+                                <div className="shrink-0 w-full md:w-auto">
+                                  {!hasCheckedIn ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerCheckIn(req.id, req.location.lat, req.location.lng)}
+                                      className="w-full md:w-auto bg-[#8BA888] hover:bg-[#799976] text-white font-sans text-xs font-bold py-2.5 px-5 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition duration-150 active:scale-95"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                      <span>เช็คอินเข้างาน (Check-In) ด้วย GPS</span>
+                                    </button>
+                                  ) : !hasCheckedOut ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCheckoutRequestId(req.id)}
+                                      className="w-full md:w-auto bg-[#433E3B] hover:bg-[#34302C] text-[#E6D5B8] font-sans text-xs font-bold py-2.5 px-5 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer border border-[#E6D5B8]/20 transition duration-150 active:scale-95"
+                                    >
+                                      <Send className="w-4 h-4" />
+                                      <span>เช็คเอาท์ & รายงานสรุปส่งผลงาน</span>
+                                    </button>
+                                  ) : (
+                                    <div className="bg-[#E2EBE0] p-3 rounded-2xl border border-earth-primary/30 text-xs text-[#2E5E2A] space-y-1">
+                                      <p className="font-bold flex items-center gap-1">
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span>เช็คเอาท์เรียบร้อย & รายงานสำเร็จ</span>
+                                      </p>
+                                      <p className="text-[10px] font-mono">เวลาบันทึก: {req.checkOut?.time} น.</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <ManagerCalendar 
                   requests={myScopeRequests}
                   selectedMonth={selectedMonth}
                   employees={employees}
-                  plans={myScopePlans}
+                  plans={plans}
                 />
               </div>
             )}
 
-            {employeeActiveTab === 'daily' && (
+            {false && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Left Hand: Request Form block */}
@@ -3612,6 +4059,173 @@ export default function App() {
         )}
 
       </main>
+
+      {/* GLOBAL CHECK-OUT MODAL OVERLAY */}
+      {checkoutRequestId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-[#433E3B] text-white rounded-3xl border border-[#E6D5B8]/20 max-w-xl w-full p-6 md:p-8 shadow-2xl relative space-y-6 text-left animate-fadeIn">
+            <button 
+              onClick={() => setCheckoutRequestId(null)}
+              className="absolute top-4 right-4 text-white/60 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-2 border-b border-white/15 pb-3 font-sans">
+              <h3 className="font-extrabold text-lg text-[#E6D5B8] flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 animate-pulse text-earth-secondary" />
+                <span>เพิ่มรายละเอียดการทำงานและเช็คเอาท์ออกงาน (Check-Out Report)</span>
+              </h3>
+              <p className="text-xs text-white/80 font-sans">
+                กรุณากรอกรายงานสรุปผลการทำงานนอกสถานที่ และระบุปัญหาอุปสรรคที่พบหลังเสร็จสิ้นภารกิจ
+              </p>
+            </div>
+
+            <form onSubmit={handleCheckOutSubmit} className="space-y-4 text-xs text-white/90 font-sans">
+              <div>
+                <label className="block text-xs font-bold text-[#E6D5B8] mb-1 font-sans">รายงานสรุปผลการทำงาน (Work Summary):</label>
+                <textarea
+                  value={checkoutWorkSummary}
+                  onChange={(e) => setCheckoutWorkSummary(e.target.value)}
+                  placeholder="เช่น ดำเนินงานคุมทัวร์นาเมนต์รอบ 64 คน และแจกจ่ายสินค้าของพรีเมี่ยมเสร็จเรียบร้อย..."
+                  className="w-full bg-black/25 border border-white/20 text-white rounded-xl px-3 py-2 text-xs min-h-[90px] outline-none focus:ring-1 focus:ring-[#8BA888]"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[#E6D5B8] font-sans">ระบุปัญหาและรายงานอุปสรรคที่พบเจอ (ถ้ามี):</label>
+                <input
+                  type="text"
+                  value={checkoutIssueFound}
+                  onChange={(e) => setCheckoutIssueFound(e.target.value)}
+                  placeholder="ใส่ 'ไม่มีปัญหา' หากเรียบร้อยดี"
+                  className="w-full bg-black/25 border border-white/20 text-white rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-[#8BA888]"
+                />
+
+                {/* Problem solved status switcher */}
+                <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/10 mt-2 font-sans">
+                  <div>
+                    <p className="text-white text-xs font-bold">ปัญหานี้ได้รับการแก้ไขแล้วเสร็จในจุดปฏิบัติงานหรือไม่?</p>
+                    <p className="text-white/60 text-[10px] italic">หากดำเนินการแก้ไขเสร็จสิ้นแล้ว ให้เลือกรับรองสถานะไว้</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutIssueResolved(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                        checkoutIssueResolved 
+                          ? 'bg-[#8BA888] text-white' 
+                          : 'bg-white/10 text-white/50 hover:bg-white/15'
+                      }`}
+                    >
+                      แก้ไขแล้ว
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutIssueResolved(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                        !checkoutIssueResolved 
+                          ? 'bg-[#D27D59] text-white' 
+                          : 'bg-white/10 text-white/50 hover:bg-white/15'
+                      }`}
+                    >
+                      ยังไม่แก้
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* WORKPLACE / TASK IMAGE VERIFICATION */}
+              <div className="space-y-2 bg-black/10 p-4 rounded-xl border border-white/5 text-[#E6D5B8] font-sans">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-[#8BA888]" />
+                    <span>แนบภาพถ่ายสถานที่ทำงานหรือภาพผลงานสำเร็จ <span className="text-[#D27D59] font-black">* จำเป็น</span></span>
+                  </label>
+                  {checkoutWorkImage && (
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutWorkImage('')}
+                      className="text-[11px] text-rose-300 hover:text-rose-200 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>ลบรูปภาพ</span>
+                    </button>
+                  )}
+                </div>
+
+                {!checkoutWorkImage ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        const file = e.dataTransfer.files[0];
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          if (ev.target?.result) setCheckoutWorkImage(ev.target.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="border-2 border-dashed border-white/25 hover:border-[#8BA888]/40 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition flex flex-col items-center gap-2 group relative"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="checkout-photo-input-global"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            if (ev.target?.result) setCheckoutWorkImage(ev.target.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <Upload className="w-8 h-8 text-[#E6D5B8]/85 group-hover:scale-115 transition duration-200 pointer-events-none" />
+                    <p className="text-xs text-white/95 font-bold pointer-events-none">ลากและวางรูปภาพที่นี่ หรือคลิกเพื่อเลือกไฟล์</p>
+                    <p className="text-[10px] text-white/55 pointer-events-none">(PNG, JPG, JPEG)</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20 max-h-36 relative group">
+                    <img 
+                      src={checkoutWorkImage} 
+                      alt="Workplace Completion Evidence" 
+                      className="w-full h-36 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2 font-sans">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutRequestId(null)}
+                  className="flex-1 py-2.5 bg-[#4A4541] hover:bg-[#57514C] border border-white/10 text-white rounded-xl text-xs font-bold cursor-pointer transition select-none text-center"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-earth-primary hover:bg-[#7D9A7A] text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-98 text-center"
+                >
+                  📝 ยืนยันเช็คเอาท์และสรุปงาน
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CHANGE PASSWORD OVERLAY */}
       {isChangePasswordOpen && (
