@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { OffSiteRequest } from '../types';
 import { POPULAR_LOCATIONS } from '../data/mockData';
 import { MapPin, Info, Navigation, Users, ShieldAlert, CheckCircle2, TrendingUp } from 'lucide-react';
@@ -16,6 +16,37 @@ interface OfflineSimMapProps {
 export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineSimMapProps) {
   const [hoveredLocation, setHoveredLocation] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+
+  // Zoom & Pan configurations for Live Action Map
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3.5));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPanX(0);
+    setPanY(0);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only drag with left mouse button
+    setIsPanning(true);
+    setStartPan({ x: e.clientX - panX, y: e.clientY - panY });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    setPanX(e.clientX - startPan.x);
+    setPanY(e.clientY - startPan.y);
+  };
+
+  const handleMouseUpOrLeave = () => {
+    setIsPanning(false);
+  };
 
   // Filter requests that are approved/completed (realistic historical logs)
   const activeRequests = useMemo(() => {
@@ -120,15 +151,15 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Visual Map Canvas Container */}
-      <div className="lg:col-span-2 bg-[#FAFBFD] rounded-2xl border border-slate-100 shadow-sm p-4 overflow-hidden relative min-h-[550px] flex flex-col">
-        <div className="flex justify-between items-start mb-4">
+      <div className="lg:col-span-2 bg-[#FAFBFD] rounded-2xl border border-slate-100 shadow-sm p-4 overflow-hidden relative min-h-[380px] sm:min-h-[480px] md:min-h-[550px] flex flex-col">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-4">
           <div>
             <h3 className="font-semibold text-slate-800 text-lg">แผนที่จำลองการพิกัด GPS และตำแหน่งหนาแน่น</h3>
             <p className="text-sm text-slate-500">จำลองพื้นที่กรุงเทพฯ และปริมณฑล พร้อมแสดงความถี่ในการเข้าดำเนินงานนอกสถานที่</p>
           </div>
           
           {/* MAP LEGENDS */}
-          <div className="flex gap-4 p-2 bg-white rounded-xl border border-slate-100 text-xs text-slate-600">
+          <div className="flex flex-wrap gap-3 p-2 bg-white rounded-xl border border-slate-100 text-[11px] sm:text-xs text-slate-600">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse inline-block" />
               <span>จุดยอดนิยม (3+ ครั้ง)</span>
@@ -145,9 +176,44 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
         </div>
 
         {/* INTERACTIVE COMPREHENSIVE SVG VECTOR SYSTEM */}
-        <div className="flex-1 bg-white border border-slate-100 rounded-xl relative overflow-auto shadow-inner h-[460px] cursor-grab active:cursor-grabbing">
-          <svg viewBox="0 0 1000 650" className="w-full h-full min-w-[750px] bg-[#ECF3FE]">
-            {/* STYLIZED METROPOLITAN BACKGROUND & DISTRICT REGIONS */}
+        <div 
+          className={`flex-1 bg-white border border-slate-100 rounded-xl relative overflow-hidden shadow-inner h-[280px] sm:h-[380px] md:h-[460px] select-none ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUpOrLeave}
+          onMouseLeave={handleMouseUpOrLeave}
+        >
+          {/* Floating Zoom Controls */}
+          <div className="absolute top-4 right-4 flex flex-col gap-1.5 z-10 bg-white/95 backdrop-blur-xs p-1.5 rounded-xl border border-slate-200/80 shadow-md">
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-lg shadow-2xs text-sm font-bold transition-all cursor-pointer active:scale-95"
+              title="ซูมเข้า (Zoom In)"
+            >
+              ＋
+            </button>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 rounded-lg shadow-2xs text-sm font-bold transition-all cursor-pointer active:scale-95"
+              title="ซูมออก (Zoom Out)"
+            >
+              －
+            </button>
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="w-7 h-7 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 rounded-lg text-[9px] font-black transition-all cursor-pointer active:scale-95"
+              title="รีเซ็ต (Reset)"
+            >
+              1:1
+            </button>
+          </div>
+
+          <svg viewBox="0 0 1000 650" className="w-full h-full bg-[#ECF3FE]">
+            {/* STYLIZED METROPOLITAN BACKGROUND & DISTRICT REGIONS with zoom/pan applied */}
+            <g transform={`translate(${panX}, ${panY}) scale(${zoom})`} className="origin-center transition-transform duration-100 ease-out">
             
             {/* Chao Phraya River winding across Bangkok */}
             <path
@@ -283,6 +349,7 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
                 </g>
               );
             })}
+            </g>
           </svg>
 
           {/* Quick Informative Banner at Bottom Left */}

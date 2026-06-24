@@ -819,11 +819,10 @@ export default function App() {
   };
 
   const approvePlanAndGenerateRequests = (planId: string, approvedByString: string) => {
-    let targetPlan: OffSitePlan | null = null;
+    const planToGen = plans.find(p => p.id === planId);
     
     setPlans(prev => prev.map(p => {
       if (p.id === planId) {
-        targetPlan = p;
         return {
           ...p,
           status: 'approved',
@@ -834,8 +833,7 @@ export default function App() {
       return p;
     }));
 
-    if (targetPlan) {
-      const planToGen = targetPlan as OffSitePlan;
+    if (planToGen) {
       const emp = employees.find(e => e.id === planToGen.employeeId);
       const newReqs: OffSiteRequest[] = planToGen.plannedDates.map((pd, index) => {
         // Avoid duplicate request generation
@@ -2996,172 +2994,9 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column: Request Form */}
-                    <div className="lg:col-span-1 space-y-6">
-                      <div id="employee-request-form-card" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
-                        <div className="border-b border-earth-border pb-3">
-                          <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
-                            <Send className="w-5 h-5 text-earth-primary" />
-                            <span>ขออนุมัติทำงานนอกสถานที่ (Off-Site Request Form)</span>
-                          </h3>
-                          <p className="text-xs text-earth-text/80">ระบุตำแหน่ง วันที่ และสาเหตุเพื่อเริ่มภารกิจและการตรวจพิกัดเช็คอิน</p>
-                        </div>
-
-                        {formSuccessMessage && (
-                          <div className="p-3 bg-[#E2EBE0] border border-earth-primary/50 text-[#2E5E2A] text-xs rounded-xl font-bold animate-pulse">
-                            {formSuccessMessage}
-                          </div>
-                        )}
-
-                        <form onSubmit={handleRequestSubmit} className="space-y-4">
-                          {/* Employee identification */}
-                          <div>
-                            <label className="block text-xs font-bold text-earth-text mb-1">พนักงานผู้ส่งคำขอ</label>
-                            <div className="bg-[#FAF8F5] px-3 py-2 rounded-xl text-earth-dark font-bold border border-earth-border">
-                              {currentSimEmployee.name} ({currentSimEmployee.id})
-                            </div>
-                          </div>
-
-                          {/* Date Picker */}
-                          <div>
-                            <label className="block text-xs font-bold text-earth-text mb-1">วันที่ต้องการไปปฏิบัติงาน</label>
-                            <input
-                              id="form-date-input"
-                              type="date"
-                              value={formDate}
-                              onChange={(e) => setFormDate(e.target.value)}
-                              className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-3 py-2 font-mono font-bold text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
-                              required
-                            />
-                          </div>
-
-                          {/* Hours Selection */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-bold text-earth-text mb-1">เวลาเข้าปฏิบัติงาน</label>
-                              <input
-                                id="form-start-time"
-                                type="time"
-                                value={formStartTime}
-                                onChange={(e) => setFormStartTime(e.target.value)}
-                                className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2 py-2 font-mono text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-earth-text mb-1">เวลาสิ้นสุดภารกิจ</label>
-                              <input
-                                id="form-end-time"
-                                type="time"
-                                value={formEndTime}
-                                onChange={(e) => setFormEndTime(e.target.value)}
-                                className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2 py-2 font-mono text-earth-dark focus:ring-1 focus:ring-earth-primary outline-none text-xs"
-                                required
-                              />
-                            </div>
-                          </div>
-
-                          {/* Location Selection toggle */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="block text-xs font-bold text-earth-text">พิกัดทางกายภาพเป้าหมาย</label>
-                              <button
-                                type="button"
-                                onClick={() => setIsCustomLocToggle(!isCustomLocToggle)}
-                                className="text-[11px] font-bold text-earth-primary hover:underline hover:text-[#799976]"
-                              >
-                                {isCustomLocToggle ? 'ใช้รายชื่อห้างและร้านที่กำหนด' : 'ระบุพิกัดทางภูมิเอง'}
-                              </button>
-                            </div>
-
-                            {!isCustomLocToggle ? (
-                              <select
-                                id="form-location-preset"
-                                value={formLocationPreset}
-                                onChange={(e) => setFormLocationPreset(e.target.value)}
-                                className="w-full bg-white border border-earth-border rounded-xl px-3 py-2 text-earth-dark font-semibold outline-none focus:ring-1 focus:ring-earth-primary text-xs cursor-pointer"
-                              >
-                                {POPULAR_LOCATIONS.map((loc, idx) => (
-                                  <option key={idx} value={loc.name}>{loc.name}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="space-y-2 p-3 bg-earth-sidebar/40 border border-earth-border rounded-xl">
-                                <div>
-                                  <input
-                                    id="custom-location-name"
-                                    type="text"
-                                    placeholder="ระบุชื่อสถานที่ (เช่น อาคารสำนักงานใหญ่)"
-                                    value={formCustomLocationName}
-                                    onChange={(e) => setFormCustomLocationName(e.target.value)}
-                                    className="w-full bg-white border border-earth-border rounded-lg px-2.5 py-1.5 text-xs inline-block text-earth-dark"
-                                    required={isCustomLocToggle}
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <input
-                                    id="custom-location-latitude"
-                                    type="text"
-                                    placeholder="ละติจูด (Lat)"
-                                    value={formCustomLat}
-                                    onChange={(e) => setFormCustomLat(e.target.value)}
-                                    className="bg-white border border-earth-border rounded-lg px-2.5 py-1.5 font-mono text-earth-dark text-xs"
-                                    required={isCustomLocToggle}
-                                  />
-                                  <input
-                                    id="custom-location-longitude"
-                                    type="text"
-                                    placeholder="ลองจิจูด (Lng)"
-                                    value={formCustomLng}
-                                    onChange={(e) => setFormCustomLng(e.target.value)}
-                                    className="bg-white border border-earth-border rounded-lg px-2.5 py-1.5 font-mono text-earth-dark text-xs"
-                                    required={isCustomLocToggle}
-                                  />
-                                </div>
-                                <div>
-                                  <input
-                                    id="custom-location-address"
-                                    type="text"
-                                    placeholder="ที่อยู่โดยสังเขปเพื่อค้นหาออฟไลน์"
-                                    value={formCustomAddress}
-                                    onChange={(e) => setFormCustomAddress(e.target.value)}
-                                    className="w-full bg-white border border-earth-border rounded-lg px-2.5 py-1.5 text-xs font-serif text-earth-dark"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Purpose description field */}
-                          <div>
-                            <label className="block text-xs font-bold text-earth-text mb-1">เหตุผลและวัตถุประสงค์ในการปฏิบัติงาน</label>
-                            <textarea
-                              id="form-purpose"
-                              value={formPurpose}
-                              onChange={(e) => setFormPurpose(e.target.value)}
-                              placeholder="ระบุกิจกรรม เช่น คุมงานจัดแข่ง, อบรมพนักงานคู่ค้า..."
-                              className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-earth-primary outline-none font-serif min-h-[90px] text-earth-dark"
-                              required
-                            />
-                          </div>
-
-                          <button
-                            type="submit"
-                            className="w-full bg-earth-primary hover:bg-[#799976] text-white font-sans text-xs font-bold py-3 rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95 duration-150 text-center"
-                          >
-                            <Send className="w-4 h-4" />
-                            <span>ยื่นขออนุญาตลงพื้นที่จริง</span>
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-
-                    {/* Right Column: List & Map & Reports */}
-                    <div className="lg:col-span-2 space-y-6">
-                      
-                      {/* Active list of requests representing my workflow */}
-                      <div id="employee-workflow-history-card-integrated" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
+                  <div className="space-y-8">
+                    {/* Active list of requests representing my workflow */}
+                    <div id="employee-workflow-history-card-integrated" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
                         <div className="flex justify-between items-center border-b border-earth-border pb-3 flex-wrap gap-2">
                           <div>
                             <h3 className="font-bold text-earth-dark text-base flex items-center gap-2">
@@ -3334,7 +3169,7 @@ export default function App() {
                             <div className="text-center py-12 text-earth-text/60 border border-dashed border-earth-border rounded-3xl bg-white">
                               <History className="w-10 h-10 text-earth-border mx-auto mb-2" />
                               <p className="font-semibold text-sm">ไม่พบประวัติการลงทะเบียนจริง</p>
-                              <p className="text-xs mt-0.5">กรุณารอแผนงานอนุมัติแล้วขออนุญาตทำงานรายวันตามตำแหน่งทางฝั่งซ้าย</p>
+                              <p className="text-xs mt-0.5">กรุณารอให้หัวหน้างาน/ผู้ดูแลระบบอนุมัติแผนงานล่วงหน้าก่อนเพื่อเริ่มเช็คอิน</p>
                             </div>
                           )}
                         </div>
@@ -3346,7 +3181,7 @@ export default function App() {
                           <Globe className="w-5 h-5 text-earth-primary" />
                           <span>🗺️ แผนที่พิกัดยืนยันพาสการทำงานแบบเรียลไทม์ (Live Action Map)</span>
                         </h3>
-                        <div className="h-[300px] rounded-2xl overflow-hidden border border-earth-border">
+                        <div className="h-[450px] rounded-2xl overflow-hidden border border-earth-border">
                           <OfflineSimMap 
                             requests={requests} 
                             selectedEmployeeId={currentSimEmployee.id} 
@@ -3375,7 +3210,6 @@ export default function App() {
                         />
                       </div>
 
-                    </div>
                   </div>
                 </div>
               </div>
@@ -3841,11 +3675,9 @@ export default function App() {
                       </div>
                     </div>
 
-                    {!checkoutWorkImage && (
-                      <p className="text-[#D27D59] text-[10.5px] font-bold text-center bg-[#FCF5F2] p-2 rounded-xl border border-earth-secondary/10 animate-pulse">
-                        ⚠️ โปรดแนบรูปถ่ายการทำงาน หรือเลือกรูปภาพจำลองผลการจัดงานด่วน เพื่อยืนยันเสร็จภารกิจก่อนเช็คเอาท์
-                      </p>
-                    )}
+                    <p className="text-white/60 text-[10.5px] text-center bg-white/5 p-2 rounded-xl border border-white/5">
+                      💡 (ไม่บังคับ) ท่านสามารถเลือกแนบรูปถ่ายการทำงาน หรือเลือกรูปภาพจำลองผลงานเพื่อความสมบูรณ์ของรายงานได้
+                    </p>
 
                     <div className="flex justify-end gap-2 pt-2">
                       <button
@@ -3857,12 +3689,7 @@ export default function App() {
                       </button>
                       <button
                         type="submit"
-                        disabled={!checkoutWorkImage}
-                        className={`px-5 py-2 font-sans rounded-xl font-bold shadow-xs transition text-xs ${
-                          !checkoutWorkImage 
-                            ? 'bg-white/10 text-white/40 cursor-not-allowed border border-white/10' 
-                            : 'bg-[#8BA888] hover:bg-[#799976] text-white cursor-pointer active:scale-95'
-                        }`}
+                        className="px-5 py-2 font-sans rounded-xl font-bold shadow-xs transition text-xs bg-[#8BA888] hover:bg-[#799976] text-white cursor-pointer active:scale-95"
                       >
                         ส่งรายการบันทึกเช็คเอาท์
                       </button>
@@ -4141,7 +3968,7 @@ export default function App() {
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-bold flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-[#8BA888]" />
-                    <span>แนบภาพถ่ายสถานที่ทำงานหรือภาพผลงานสำเร็จ <span className="text-[#D27D59] font-black">* จำเป็น</span></span>
+                    <span>แนบภาพถ่ายสถานที่ทำงานหรือภาพผลงานสำเร็จ <span className="text-emerald-400 font-bold">(ไม่บังคับ)</span></span>
                   </label>
                   {checkoutWorkImage && (
                     <button

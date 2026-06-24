@@ -48,7 +48,40 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
     const paddedDay = dayNum.toString().padStart(2, '0');
     const paddedMonth = month.toString().padStart(2, '0');
     const dateStr = `${year}-${paddedMonth}-${paddedDay}`;
-    return requests.filter(req => req.date === dateStr);
+    
+    // 1. Get actual requests
+    const dayReqs = [...requests.filter(req => req.date === dateStr)];
+    
+    // 2. Add approved plans that don't already have a request
+    plans.forEach(plan => {
+      if (plan.status === 'approved') {
+        plan.plannedDates.forEach(pd => {
+          if (pd.date === dateStr) {
+            const hasReq = dayReqs.some(r => r.employeeId === plan.employeeId);
+            if (!hasReq) {
+              const emp = employees.find(e => e.id === plan.employeeId);
+              dayReqs.push({
+                id: `REQ-PLAN-${plan.id}-${pd.date}`,
+                employeeId: plan.employeeId,
+                employeeName: plan.employeeName,
+                role: emp?.role || 'พนักงานปฏิบัติการ',
+                date: pd.date,
+                startTime: pd.startTime,
+                endTime: pd.endTime,
+                location: pd.location,
+                purpose: pd.purpose,
+                status: 'approved',
+                approvedBy: plan.approvedBy || 'ระบบแผนงานล่วงหน้า',
+                approvedAt: plan.approvedAt,
+                createdAt: plan.createdAt
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    return dayReqs;
   };
 
   // Find plans / scheduled days matching a specific day number
@@ -123,7 +156,10 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
     setSelectedDate(`${year}-${paddedMonth}-${paddedDay}`);
   };
 
-  const selectedDateRequests = selectedDate ? requests.filter(req => req.date === selectedDate) : [];
+  const selectedDateRequests = selectedDate ? (() => {
+    const dayNum = parseInt(selectedDate.split('-')[2]);
+    return getRequestsForDay(dayNum);
+  })() : [];
   
   // Find plans for selected date
   const selectedDatePlans = selectedDate ? (() => {
@@ -409,7 +445,12 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
                         <div key={req.id} className="p-3 bg-white rounded-xl border border-earth-border hover:shadow-2xs transition-all space-y-2">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-extrabold text-earth-dark text-xs">{req.employeeName}</p>
+                              <p className="font-extrabold text-earth-dark text-xs">
+                                {req.employeeName}{(() => {
+                                  const empObj = employees.find(e => e.id === req.employeeId);
+                                  return empObj?.department ? ` (${empObj.department.trim()})` : '';
+                                })()}
+                              </p>
                               <p className="text-[10px] text-earth-text/70">{req.role}</p>
                             </div>
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${meta.bg}`}>
@@ -485,7 +526,12 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
                         >
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-extrabold text-earth-dark text-xs">{dpObj.employeeName}</p>
+                              <p className="font-extrabold text-earth-dark text-xs">
+                                {dpObj.employeeName}{(() => {
+                                  const empObj = employees.find(e => e.id === dpObj.plan.employeeId);
+                                  return empObj?.department ? ` (${empObj.department.trim()})` : '';
+                                })()}
+                              </p>
                               <p className="text-[10px] text-earth-text/80 font-black">
                                 {dpObj.plan.title}
                               </p>
