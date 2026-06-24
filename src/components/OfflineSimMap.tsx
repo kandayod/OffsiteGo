@@ -470,7 +470,7 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
         </div>
 
         {/* BOTTOM COMPONENT: POPULAR HOTSPOTS (อยู่จุดไหนเยอะเป็นพิเศษ) */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col">
           <div className="flex justify-between items-center mb-3">
             <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -479,13 +479,16 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
             <span className="text-[10px] font-mono text-slate-400">Sorted by Visit Count</span>
           </div>
 
-          <div className="space-y-2.5">
-            {formattedLocations
-              .filter(l => l.visitCount > 0)
-              .sort((a, b) => b.visitCount - a.visitCount)
-              .slice(0, 4)
-              .map((loc, index) => {
-                const percentage = Math.min((loc.visitCount / 4) * 100, 100);
+          <div className="max-h-[220px] overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
+            {(() => {
+              const activeLocations = formattedLocations
+                .filter(l => l.visitCount > 0)
+                .sort((a, b) => b.visitCount - a.visitCount);
+              
+              const maxVisitCount = Math.max(...activeLocations.map(l => l.visitCount), 1);
+
+              return activeLocations.map((loc, index) => {
+                const percentage = Math.min((loc.visitCount / maxVisitCount) * 100, 100);
                 const isTop = index === 0;
 
                 return (
@@ -498,12 +501,12 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
                   >
                     <div className="flex justify-between items-center text-xs mb-1">
                       <div className="flex items-center gap-1.5 truncate">
-                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-extrabold ${isTop ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-extrabold shrink-0 ${isTop ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
                           {index + 1}
                         </span>
                         <span className="font-semibold text-slate-700 truncate">{loc.name}</span>
                       </div>
-                      <span className="font-mono font-black text-rose-600 pr-1">{loc.visitCount} <span className="text-[10px] font-normal text-slate-400">ครั้ง</span></span>
+                      <span className="font-mono font-black text-rose-600 pr-1 shrink-0">{loc.visitCount} <span className="text-[10px] font-normal text-slate-400">ครั้ง</span></span>
                     </div>
                     {/* Tiny visual bar */}
                     <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -514,7 +517,8 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
 

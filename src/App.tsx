@@ -3181,7 +3181,7 @@ export default function App() {
                           <Globe className="w-5 h-5 text-earth-primary" />
                           <span>🗺️ แผนที่พิกัดยืนยันพาสการทำงานแบบเรียลไทม์ (Live Action Map)</span>
                         </h3>
-                        <div className="h-[450px] rounded-2xl overflow-hidden border border-earth-border">
+                        <div className="rounded-2xl border border-earth-border p-1 bg-slate-50/50">
                           <OfflineSimMap 
                             requests={requests} 
                             selectedEmployeeId={currentSimEmployee.id} 
