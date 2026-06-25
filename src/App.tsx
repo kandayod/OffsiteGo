@@ -11,6 +11,7 @@ import {
 } from './data/mockData';
 import { OffSiteRequest, LocationCoordinates, RequestStatus, Employee, OffSitePlan } from './types';
 import OfflineSimMap from './components/OfflineSimMap';
+import KidzKitzLogo from './components/KidzKitzLogo';
 import ReportTemplate from './components/ReportTemplate';
 import DashboardAnalytics from './components/DashboardAnalytics';
 import ManagerCalendar from './components/ManagerCalendar';
@@ -1211,14 +1212,15 @@ export default function App() {
     <div className="min-h-screen bg-earth-bg text-earth-text font-sans antialiased text-sm">
       {/* REAL-TIME SYSTEM BAR INFORMATION */}
       <header className="bg-earth-sidebar border-b border-earth-border py-4 px-6 md:px-12 flex flex-col md:flex-row justify-between items-center shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="bg-earth-primary p-2.5 rounded-2xl shadow-inner border border-earth-border/20 text-white">
-            <Globe className="w-6 h-6 text-white animate-spin" style={{ animationDuration: '15s' }} />
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
+            <KidzKitzLogo height="44px" className="w-auto" />
           </div>
+          <div className="h-8 w-px bg-earth-border hidden md:block" />
           <div>
             <div className="flex items-center flex-wrap gap-2">
               <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-earth-dark">
-                ระบบจัดการทำงานนอกสถานที่ และติดตามพิกัด GPS
+                ระบบจัดการทำงานนอกสถานที่
               </h1>
               <span className="text-[10px] font-bold bg-white text-earth-dark border border-earth-border px-2.5 py-0.5 rounded-full shadow-2xs">KIDZ & KITZ CO.</span>
             </div>
