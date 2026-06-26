@@ -91,17 +91,17 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
 
     // MOCK DATA FOR BOOTSTRAPPING
     const INITIAL_EMPLOYEES = [
-      { id: 'EMP001', name: 'สมศักดิ์ รักดี', role: 'ผู้ช่วยการตลาดสื่อสิ่งพิมพ์และการ์ดเกม', department: 'ฝ่ายพัฒนาธุรกิจ (BD)', avatarColor: '#3A5C3D', workGroup: 'regular' },
-      { id: 'EMP002', name: 'กิตติศักดิ์ พูลทวี', role: 'เจ้าหน้าที่ทีมงานอีเวนต์นอกสถานที่', department: 'ฝ่ายกิจกรรมและแข่งขัน', avatarColor: '#A27B5C', workGroup: 'adhoc' },
-      { id: 'EMP003', name: 'ธิดารัตน์ งดงาม', role: 'ผู้ประสานงานลิขสิทธิ์และการตลาดย่อย', department: 'ฝ่ายลิขสิทธิ์สากล', avatarColor: '#D38B5D', workGroup: 'regular' }
+      { id: 'KK0098', name: 'ออนนิตา โต๊ะสะอิ', role: 'หัวหน้าแผนกส่วนงานทรัพยากรบุคคล', department: 'ฝ่ายสำนักงาน', avatarColor: '#4F46E5', workGroup: 'regular' },
+      { id: 'KK0118', name: 'พีรศักดิ์ ผลทวี', role: 'เจ้าหน้าที่การตลาดและพัฒนาชุมชน', department: 'ฝ่ายพัฒนาผลิตภัณฑ์', avatarColor: '#0D9488', workGroup: 'adhoc' },
+      { id: 'KK0159', name: 'อภิญญา หวังมี', role: 'เจ้าหน้าที่บัญชีเจ้าหนี้', department: 'ฝ่ายสำนักงาน', avatarColor: '#4F46E5', workGroup: 'regular' }
     ];
 
     const INITIAL_REQUESTS = [
       {
         id: 'REQ001',
-        employeeId: 'EMP001',
-        employeeName: 'สมศักดิ์ รักดี',
-        role: 'ผู้ช่วยการตลาดสื่อสิ่งพิมพ์และการ์ดเกม',
+        employeeId: 'KK0098',
+        employeeName: 'ออนนิตา โต๊ะสะอิ',
+        role: 'หัวหน้าแผนกส่วนงานทรัพยากรบุคคล',
         date: '2026-06-13',
         startTime: '09:00',
         endTime: '18:00',
@@ -111,9 +111,9 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
       },
       {
         id: 'REQ002',
-        employeeId: 'EMP002',
-        employeeName: 'กิตติศักดิ์ พูลทวี',
-        role: 'เจ้าหน้าที่ทีมงานอีเวนต์นอกสถานที่',
+        employeeId: 'KK0118',
+        employeeName: 'พีรศักดิ์ ผลทวี',
+        role: 'เจ้าหน้าที่การตลาดและพัฒนาชุมชน',
         date: '2026-06-13',
         startTime: '10:00',
         endTime: '19:00',
@@ -127,7 +127,7 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
     function App() {
       const [activeRole, setActiveRole] = useState('employee');
       const [employeeActiveTab, setEmployeeActiveTab] = useState('daily');
-      const [simulatedEmployeeId, setSimulatedEmployeeId] = useState('EMP001');
+      const [simulatedEmployeeId, setSimulatedEmployeeId] = useState('KK0098');
       const [selectedMonth, setSelectedMonth] = useState('2026-06');
       
       // Load initial lists from LocalStorage or Fallback
@@ -146,8 +146,8 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
         return saved ? JSON.parse(saved) : [
           {
             id: 'PLAN-2026-001',
-            employeeId: 'EMP001',
-            employeeName: 'สมศักดิ์ รักดี',
+            employeeId: 'KK0098',
+            employeeName: 'ออนนิตา โต๊ะสะอิ',
             title: 'แผนงานส่งเสริมสโมสรการคุมแข่งขันการ์ดเกมตลอดเดือนมิถุนายน',
             type: 'monthly',
             startDate: '2026-06-01',

@@ -444,6 +444,7 @@ export default function App() {
 
   // Admin User Editing States
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [editEmpId, setEditEmpId] = useState<string>('');
   const [editEmpName, setEditEmpName] = useState<string>('');
   const [editEmpEmail, setEditEmpEmail] = useState<string>('');
   const [editEmpRole, setEditEmpRole] = useState<string>('');
@@ -518,9 +519,24 @@ export default function App() {
     e.preventDefault();
     if (!editingEmployeeId) return;
 
+    const trimmedNewId = editEmpId.trim();
+    if (!trimmedNewId) {
+      setAdminUpdateError('กรุณาระบุรหัสพนักงานใหม่');
+      return;
+    }
+
     if (!editEmpName.trim() || !editEmpEmail.trim()) {
       setAdminUpdateError('กรุณากรอกข้อมูลพนักงานให้ครบถ้วน');
       return;
+    }
+
+    // Verify duplicate ID if it changed
+    if (trimmedNewId !== editingEmployeeId) {
+      const isDuplicate = employees.some(emp => emp.id === trimmedNewId);
+      if (isDuplicate) {
+        setAdminUpdateError(`รหัสพนักงานใหม่ "${trimmedNewId}" มีอยู่ในระบบฐานข้อมูลแล้ว กรุณาเลือกกำหนดรหัสใหม่ที่ไม่ซ้ำซ้อน`);
+        return;
+      }
     }
 
     const parentApprover = employees.find(emp => emp.id === editSelectedApproverId);
@@ -536,10 +552,13 @@ export default function App() {
       }
     }
 
+    // Cascade Updates!
+    // 1. Update Employee Master List (including subordinates' approverId / approverName if the edited employee is their manager)
     setEmployees(prev => prev.map(emp => {
       if (emp.id === editingEmployeeId) {
         return {
           ...emp,
+          id: trimmedNewId,
           name: editEmpName.trim(),
           role: editEmpRole.trim(),
           email: editEmpEmail.trim(),
@@ -551,10 +570,63 @@ export default function App() {
           password: editEmpPassword.trim() || '1234'
         };
       }
+      if (emp.approverId === editingEmployeeId) {
+        return {
+          ...emp,
+          approverId: trimmedNewId,
+          approverName: `${editEmpName.trim()} (${editEmpRole.trim().split(' (')[0]})`
+        };
+      }
       return emp;
     }));
 
-    setAdminUpdateSuccess('อัปเดตข้อมูลพนักงานเรียบร้อยแล้ว!');
+    // 2. Cascade Update to Planning Logs (OffSitePlan)
+    setPlans(prev => prev.map(plan => {
+      if (plan.employeeId === editingEmployeeId) {
+        return {
+          ...plan,
+          employeeId: trimmedNewId,
+          employeeName: editEmpName.trim()
+        };
+      }
+      return plan;
+    }));
+
+    // 3. Cascade Update to Check-In/Check-Out and Request Logs (OffSiteRequest)
+    setRequests(prev => prev.map(req => {
+      if (req.employeeId === editingEmployeeId) {
+        return {
+          ...req,
+          employeeId: trimmedNewId,
+          employeeName: editEmpName.trim()
+        };
+      }
+      return req;
+    }));
+
+    // 4. Update loggedInUser if the currently logged-in user is the edited employee
+    if (loggedInUser && loggedInUser.id === editingEmployeeId) {
+      setLoggedInUser({
+        ...loggedInUser,
+        id: trimmedNewId,
+        name: editEmpName.trim(),
+        role: editEmpRole.trim(),
+        email: editEmpEmail.trim(),
+        department: editEmpDept.trim(),
+        position: editEmpPosition,
+        workGroup: editEmpWorkGroup,
+        approverId: finalApproverId,
+        approverName: finalApproverName,
+        password: editEmpPassword.trim() || '1234'
+      });
+    }
+
+    // 5. Update simulatedEmployeeId if it matches the edited user's old ID
+    if (simulatedEmployeeId === editingEmployeeId) {
+      setSimulatedEmployeeId(trimmedNewId);
+    }
+
+    setAdminUpdateSuccess('อัปเดตข้อมูลและประสานรหัสพนักงาน (Cascade Update) เรียบร้อยทุกระบบแล้ว!');
     setEditingEmployeeId(null);
   };
 
@@ -574,6 +646,7 @@ export default function App() {
 
   const startEditingEmployee = (emp: Employee) => {
     setEditingEmployeeId(emp.id);
+    setEditEmpId(emp.id);
     setEditEmpName(emp.name);
     setEditEmpRole(emp.role);
     setEditEmpEmail(emp.email);
@@ -2578,6 +2651,21 @@ export default function App() {
                           ⚠️ {adminUpdateError}
                         </div>
                       )}
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] uppercase font-bold text-amber-950 mb-1 flex items-center gap-1">
+                          <span>🆔 รหัสพนักงาน (Employee ID) *</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editEmpId}
+                          onChange={(e) => setEditEmpId(e.target.value)}
+                          className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-2.5 py-1.5 font-bold font-mono outline-none uppercase"
+                          placeholder="เช่น KK0012"
+                        />
+                        <p className="text-[9px] text-amber-700/80">ปลดล็อกให้ผู้ดูแลระบบแก้ไขรหัสได้ทันที และระบบจะอัปเดตโยงคาน (Cascade Update) ประวัติทั้งหมดให้อัตโนมัติ</p>
+                      </div>
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
