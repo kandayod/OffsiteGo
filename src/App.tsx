@@ -404,6 +404,28 @@ export default function App() {
     }
   }, [loggedInUser]);
 
+  // Sync loggedInUser with real-time employees data from Firestore
+  useEffect(() => {
+    if (loggedInUser && employees.length > 0) {
+      const updatedUser = employees.find(e => e.id.trim().toUpperCase() === loggedInUser.id.trim().toUpperCase());
+      if (updatedUser) {
+        if (
+          updatedUser.password !== loggedInUser.password ||
+          updatedUser.name !== loggedInUser.name ||
+          updatedUser.role !== loggedInUser.role ||
+          updatedUser.position !== loggedInUser.position ||
+          updatedUser.approverId !== loggedInUser.approverId ||
+          updatedUser.approverName !== loggedInUser.approverName ||
+          updatedUser.email !== loggedInUser.email ||
+          updatedUser.department !== loggedInUser.department ||
+          updatedUser.workGroup !== loggedInUser.workGroup
+        ) {
+          setLoggedInUser(updatedUser);
+        }
+      }
+    }
+  }, [employees]);
+
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-06');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
