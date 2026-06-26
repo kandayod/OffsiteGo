@@ -1,0 +1,60 @@
+{
+  "collections": {
+    "employees": {
+      "description": "Employee master data and authentication credentials",
+      "schema": {
+        "id": "string",
+        "name": "string",
+        "nickname": "string",
+        "role": "string",
+        "email": "string",
+        "department": "string",
+        "avatarColor": "string",
+        "position": "string",
+        "workGroup": "string",
+        "approverId": "string",
+        "approverName": "string",
+        "password": "string"
+      }
+    },
+    "requests": {
+      "description": "Off-site check-in requests, logs, and check-in/check-out states",
+      "schema": {
+        "id": "string",
+        "employeeId": "string",
+        "employeeName": "string",
+        "role": "string",
+        "date": "string",
+        "startTime": "string",
+        "endTime": "string",
+        "location": "object",
+        "purpose": "string",
+        "status": "string",
+        "approvedBy": "string",
+        "approvedAt": "string",
+        "rejectedReason": "string",
+        "checkIn": "object",
+        "checkOut": "object",
+        "createdAt": "string"
+      }
+    },
+    "plans": {
+      "description": "Planning logs and itineraries for off-site assignments",
+      "schema": {
+        "id": "string",
+        "employeeId": "string",
+        "employeeName": "string",
+        "title": "string",
+        "type": "string",
+        "startDate": "string",
+        "endDate": "string",
+        "status": "string",
+        "approvedBy": "string",
+        "approvedAt": "string",
+        "rejectedReason": "string",
+        "plannedDates": "array",
+        "createdAt": "string"
+      }
+    }
+  }
+}
