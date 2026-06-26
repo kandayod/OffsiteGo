@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, FormEvent } from 'react';
-import { db, saveEmployee, saveRequest, savePlan, deleteEmployeeFromFirestore, deleteRequestFromFirestore, deletePlanFromFirestore } from './lib/firebase';
+import { db, saveEmployee, saveRequest, savePlan, deleteEmployeeFromFirestore, deleteRequestFromFirestore, deletePlanFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
 import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { 
   MOCK_EMPLOYEES, 
@@ -197,6 +197,8 @@ export default function App() {
         rawSetEmployees(emps);
         localStorage.setItem('offsite_employees', JSON.stringify(emps));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'employees');
     });
 
     const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
@@ -251,6 +253,8 @@ export default function App() {
         rawSetRequests(reqs);
         localStorage.setItem('offsite_requests', JSON.stringify(reqs));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'requests');
     });
 
     const unsubPlans = onSnapshot(collection(db, 'plans'), (snapshot) => {
@@ -318,6 +322,8 @@ export default function App() {
         rawSetPlans(plns);
         localStorage.setItem('offsite_plans', JSON.stringify(plns));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'plans');
     });
 
     return () => {
