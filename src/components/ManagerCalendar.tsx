@@ -7,9 +7,10 @@ interface ManagerCalendarProps {
   selectedMonth: string;
   employees: Employee[];
   plans: OffSitePlan[];
+  loggedInUser: Employee | null;
 }
 
-export default function ManagerCalendar({ requests, selectedMonth, employees, plans = [] }: ManagerCalendarProps) {
+export default function ManagerCalendar({ requests, selectedMonth, employees, plans = [], loggedInUser }: ManagerCalendarProps) {
   const [yearStr, monthStr] = selectedMonth.split('-');
   const year = parseInt(yearStr) || 2026;
   const month = parseInt(monthStr) || 6;
@@ -81,7 +82,18 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
       }
     });
     
-    return dayReqs;
+    // FILTER FOR ACTUAL MODE: Only show the logged-in user themselves and their subordinates in the approval line.
+    let filteredDayReqs = dayReqs;
+    if (loggedInUser) {
+      filteredDayReqs = dayReqs.filter(req => {
+        const isSelf = req.employeeId === loggedInUser.id;
+        const emp = employees.find(e => e.id === req.employeeId);
+        const isSubordinate = emp?.approverId === loggedInUser.id;
+        return isSelf || isSubordinate;
+      });
+    }
+    
+    return filteredDayReqs;
   };
 
   // Find plans / scheduled days matching a specific day number

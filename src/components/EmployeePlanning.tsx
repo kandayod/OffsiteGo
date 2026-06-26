@@ -10,11 +10,17 @@ interface EmployeePlanningProps {
 }
 
 export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, popularLocations }: EmployeePlanningProps) {
-  // Plan drafting state
+  // Plan drafting state dynamically initialized with today's date
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const nextWeek = new Date();
+  nextWeek.setDate(today.getDate() + 6);
+  const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
   const [planTitle, setPlanTitle] = useState<string>('');
-  const [planType, setPlanType] = useState<'weekly' | 'monthly'>('weekly');
-  const [planStartDate, setPlanStartDate] = useState<string>('2026-06-15');
-  const [planEndDate, setPlanEndDate] = useState<string>('2026-06-21');
+  const [planType, setPlanType] = useState<'weekly' | 'monthly' | 'day'>('weekly');
+  const [planStartDate, setPlanStartDate] = useState<string>(todayStr);
+  const [planEndDate, setPlanEndDate] = useState<string>(nextWeekStr);
   const [openPlanId, setOpenPlanId] = useState<string | null>(null);
 
   // Draft days inside current planning drafting
@@ -28,17 +34,15 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
     endTime: string;
   }[]>([
     {
-      date: '2026-06-15',
+      date: todayStr,
       locationPreset: popularLocations[0]?.name || 'เมก้า พลาซ่า สะพานเหล็ก',
       customLocationName: '',
       isCustom: false,
-      purpose: 'ปฏิบัติภารกิจดูแลคอมมูนิตี้การแข่งขันการ์ดเกมประจำสาขา',
+      purpose: '',
       startTime: '09:00',
       endTime: '18:00'
     }
   ]);
-
-  const isRegular = currentSimEmployee.workGroup === 'regular';
 
   // My submitted plans list
   const myPlans = plans.filter(p => p.employeeId === currentSimEmployee.id);
@@ -60,7 +64,7 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
         locationPreset: popularLocations[0]?.name || 'เมก้า พลาซ่า สะพานเหล็ก',
         customLocationName: '',
         isCustom: false,
-        purpose: 'กิจกรรมนอกสถานที่เพื่อโปรโมตแบรนด์',
+        purpose: '',
         startTime: '09:00',
         endTime: '18:00'
       }
@@ -165,31 +169,24 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
     <div className="space-y-6">
       
       {/* 1. VISUAL WORKGROUP CAPABILITY CARD (Highlighting current rules) */}
-      <div className={`p-5 rounded-3xl border transition-all shadow-sm ${
-        isRegular 
-          ? 'bg-gradient-to-br from-white to-[#F2F8F1] border-[#CBDBC8]' 
-          : 'bg-white border-earth-border'
-      }`}>
+      <div className="p-5 rounded-3xl border transition-all shadow-sm bg-gradient-to-br from-white to-[#F2F8F1] border-[#CBDBC8]">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border shrink-0 inline-block ${
-              isRegular 
-                ? 'bg-earth-primary/20 text-[#2E5E2A] border-[#8BA888]/40' 
-                : 'bg-amber-100 text-amber-800 border-amber-300'
-            }`}>
-              {isRegular ? 'กลุ่มขอปฏิบัติงานนอกสถานที่ประจำ' : 'กลุ่มพนักงานขอทำงานนอกสถานทีรายครั้ง (Ad-hoc)'}
+            <span className="text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border shrink-0 inline-block bg-earth-primary/20 text-[#2E5E2A] border-[#8BA888]/40">
+              ระบบสิทธิ์อนุมัติแผนปฏิบัติงานนอกสถานที่ล่วงหน้า
             </span>
             <h4 className="font-bold text-earth-dark text-base mt-2">
-              {isRegular ? '✨ ระบบยื่นรับรองแผนปฏิบัติงานล่วงหน้ารายสัปดาห์ / รายเดือน' : '📥 ส่งแบบขออนุมัติใช้งานพื้นที่ทำงานรายวันตามปกติ'}
+              ✨ วางแผนงานล่วงหน้าเพื่อรับสิทธิ์ "อนุมัติทันที" (Auto-Approval)
             </h4>
-            <p className="text-xs text-earth-text/80 leading-relaxed mt-1">
-              {isRegular 
-                ? 'คุณอยู่ในกลุ่มที่ลงชื่อนอกสถานที่ประจำเป็นนิจ เพื่อหลีกเลี่ยงการเสียเวลาเสนอใบขออนุมัติแบบเคสรายครั้ง "กรุณายื่นเสนอร่างแผนปฏิบัติงานล่วงหน้ารายสัปดาห์/เดือน" และคอยหัวหน้ากดยืนยันหนึ่งครั้ง เมื่ออนุมัติแล้ว คำขอเช็คอิน-เอ้าท์รายวันของคุณจะเข้าสู่กลไกอนุมัติทันทีอัตโนมัติ (Auto-Approval) โดยระบบจะป้องกันไม่ให้พนักงานกลุ่มประจำยื่นบันทึกงานโดยปราศจากแผนที่รับอนุมัติล่วงหน้า' 
-                : 'คุณอยู่ในกลุ่มขอลงพิกัดรายครั้ง เมื่อจำเป็นต้องเดินทาง ให้กรอกแบบฟอร์มส่งขอคำอนุมัติรายครั้ง และให้ผู้จัดการกดผ่านรายการเป็นครั้งๆ ไป'}
+            <p className="text-xs text-[#5C544A] leading-relaxed mt-1">
+              พนักงานทุกท่านสามารถจัดทำและยื่นเสนอร่าง <strong>"แผนปฏิบัติงานล่วงหน้า"</strong> (รายสัปดาห์ / รายเดือน) เสนอให้หัวหน้างานอนุมัติในระบบล่วงหน้าได้ 
+              เมื่อแผนงานได้รับการอนุมัติแล้ว ทุกครั้งที่ท่านทำการเช็คอินพิกัดในวันที่กำหนด ระบบจะทำการ <strong>อนุมัติบันทึกเวลาให้อัตโนมัติทันที (Auto-Approval)</strong> 
+              โดยมิต้องส่งขออนุมัติและรอหัวหน้างานกดผ่านรายวันอีกรอบ 
+              <em> (หากไม่มีแผนงานล่วงหน้า คำขอเช็คอินของท่านจะถูกส่งไปเพื่อรอหัวหน้างานอนุมัติแบบรายครั้งตามปกติ)</em>
             </p>
           </div>
-          <div className="p-3 bg-white rounded-2xl border border-earth-border shadow-2xs">
-            <CalendarRange className={`w-6 h-6 ${isRegular ? 'text-earth-primary animate-pulse' : 'text-[#6B6359]'}`} />
+          <div className="p-3 bg-white rounded-2xl border border-earth-border shadow-2xs shrink-0">
+            <CalendarRange className="w-6 h-6 text-earth-primary animate-pulse" />
           </div>
         </div>
       </div>
@@ -224,9 +221,16 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
               <label className="block text-xs font-bold text-earth-text mb-1">ประเภทช่วงเวลาแผน</label>
               <select
                 value={planType}
-                onChange={(e) => setPlanType(e.target.value as 'weekly' | 'monthly')}
+                onChange={(e) => {
+                  const newType = e.target.value as 'weekly' | 'monthly' | 'day';
+                  setPlanType(newType);
+                  if (newType === 'day') {
+                    setPlanEndDate(planStartDate);
+                  }
+                }}
                 className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-3 py-2 text-xs text-earth-dark font-semibold outline-none focus:ring-1 focus:ring-earth-primary"
               >
+                <option value="day">รายวัน (Day Plan)</option>
                 <option value="weekly">รายสัปดาห์ (Weekly Plan)</option>
                 <option value="monthly">รายเดือน (Monthly Plan)</option>
               </select>
@@ -237,7 +241,13 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
                 <input
                   type="date"
                   value={planStartDate}
-                  onChange={(e) => setPlanStartDate(e.target.value)}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    setPlanStartDate(newStart);
+                    if (planType === 'day') {
+                      setPlanEndDate(newStart);
+                    }
+                  }}
                   className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 text-xs text-earth-dark font-mono font-bold outline-none"
                 />
               </div>
@@ -247,7 +257,8 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
                   type="date"
                   value={planEndDate}
                   onChange={(e) => setPlanEndDate(e.target.value)}
-                  className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 text-xs text-earth-dark font-mono font-bold outline-none"
+                  disabled={planType === 'day'}
+                  className="w-full bg-[#FAF8F5] border border-earth-border rounded-xl px-2.5 py-1.5 text-xs text-earth-dark font-mono font-bold outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -383,7 +394,7 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-extrabold text-earth-dark text-xs">{plan.title}</span>
-                        <span className="text-[9px] bg-earth-primary/10 text-earth-primary border border-earth-primary/20 px-1.5 py-0.5 rounded-md font-bold uppercase">{plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}</span>
+                        <span className="text-[9px] bg-earth-primary/10 text-earth-primary border border-earth-primary/20 px-1.5 py-0.5 rounded-md font-bold uppercase">{plan.type === 'day' ? 'วัน' : plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}</span>
                       </div>
                       <p className="text-[10px] text-earth-text/70">
                         ช่วงรับรองแผน: {plan.startDate.split('-').reverse().join('/')} ถึง {plan.endDate.split('-').reverse().join('/')} | ส่งเมื่อ: {plan.createdAt}

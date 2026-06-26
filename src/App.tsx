@@ -49,6 +49,7 @@ import {
   Shuffle,
   FileCode,
   UserPlus,
+  UserCheck,
   LogOut,
   Key,
   Lock,
@@ -60,10 +61,57 @@ export default function App() {
   // --- STATE SYSTEM WITH LOCALSTORAGE SYNCING ---
   const [requests, setRequests] = useState<OffSiteRequest[]>(() => {
     const saved = localStorage.getItem('offsite_requests');
+    let loaded: OffSiteRequest[] = [];
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try { 
+        loaded = JSON.parse(saved); 
+      } catch (e) { 
+        console.error(e); 
+      }
+    } else {
+      loaded = MOCK_REQUESTS;
     }
-    return MOCK_REQUESTS;
+    
+    // Migrate old 'EMP001', 'EMP002', 'EMP003' request references to valid 61-employee accounts:
+    // EMP001 -> KK0098 (ออนนิตา โต๊ะสะอิ)
+    // EMP002 -> KK0118 (พีรศักดิ์ ผลทวี)
+    // EMP003 -> KK0159 (อภิญญา หวังมี)
+    const hasOldRequests = loaded.some(r => r.employeeId.startsWith('EMP') || r.employeeId === 'EMP001');
+    if (hasOldRequests) {
+      loaded = loaded.map(r => {
+        if (r.employeeId === 'EMP001') {
+          return {
+            ...r,
+            employeeId: 'KK0098',
+            employeeName: 'ออนนิตา โต๊ะสะอิ',
+            role: 'หัวหน้าแผนกส่วนงานทรัพยากรบุคคล',
+            approvedBy: 'กานดา ยอดรัก'
+          };
+        }
+        if (r.employeeId === 'EMP002') {
+          return {
+            ...r,
+            employeeId: 'KK0118',
+            employeeName: 'พีรศักดิ์ ผลทวี',
+            role: 'เจ้าหน้าที่การตลาดและพัฒนาชุมชน',
+            approvedBy: 'อุดม เรืองวิไลรัตน์'
+          };
+        }
+        if (r.employeeId === 'EMP003') {
+          return {
+            ...r,
+            employeeId: 'KK0159',
+            employeeName: 'อภิญญา หวังมี',
+            role: 'เจ้าหน้าที่บัญชีเจ้าหนี้',
+            approvedBy: 'กานดา ยอดรัก'
+          };
+        }
+        return r;
+      });
+      localStorage.setItem('offsite_requests', JSON.stringify(loaded));
+    }
+    
+    return loaded;
   });
 
   useEffect(() => {
@@ -81,108 +129,62 @@ export default function App() {
       }
     }
     
-    if (loaded && loaded.length > 0) {
-      // Ensure the 'admin' user is always included for safety
-      const hasAdmin = loaded.some(emp => emp.id === 'admin');
-      if (!hasAdmin) {
-        const adminMock = MOCK_EMPLOYEES.find(emp => emp.id === 'admin') || {
-          id: 'admin',
-          name: 'ผู้ดูแลระบบและคุมระบบสูงสุด',
-          role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator)',
-          email: 'systech.kk@kidzandkitz.co.th',
-          department: 'แผนกไอทีกลาง (IT Administration)',
-          avatarColor: '#EF4444',
-          workGroup: 'adhoc',
-          position: 'admin' as const,
-          password: '1234'
-        };
-        loaded.push(adminMock);
-      }
-      
-      // Ensure the 'werasak' user is always included for safety
-      const hasWerasak = loaded.some(emp => emp.id === 'werasak');
-      if (!hasWerasak) {
-        const werasakMock = MOCK_EMPLOYEES.find(emp => emp.id === 'werasak') || {
-          id: 'werasak',
-          name: 'วีระศักดิ์ (werasak)',
-          role: 'ผู้คุมระบบและผู้ดูแลระบบ (System Administrator - werasak)',
-          email: 'werasak@kidzandkitz.co.th',
-          department: 'แผนกไอทีกลาง (IT Administration)',
-          avatarColor: '#10B981',
-          workGroup: 'adhoc',
-          position: 'admin' as const,
-          password: '1234'
-        };
-        loaded.push(werasakMock);
-      }
-
-      // Ensure the 'Kanda' user is always included for safety
-      const hasKanda = loaded.some(emp => emp.id === 'Kanda');
-      if (!hasKanda) {
-        const kandaMock = MOCK_EMPLOYEES.find(emp => emp.id === 'Kanda') || {
-          id: 'Kanda',
-          name: 'Kanda',
-          role: 'ผู้จัดการฝ่ายปฏิบัติการนอกสถานที่ (Operations Manager)',
-          email: 'kanda.manager@kidzandkitz.co.th',
-          department: 'ฝ่ายบริหารงานบริการทั่วไป',
-          avatarColor: '#AD1457',
-          workGroup: 'adhoc',
-          position: 'manager' as const,
-          password: '1234',
-          approverId: 'admin',
-          approverName: 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)'
-        };
-        loaded.push(kandaMock);
-      }
-
-      // Ensure managers have their correct approvers set
-      loaded = loaded.map(emp => {
-        if (emp.id === 'KK0031') {
-          return {
-            ...emp,
-            position: 'manager' as const,
-            approverId: 'werasak',
-            approverName: 'วีระศักดิ์ (werasak) (ผู้คุมระบบ)'
-          };
-        }
-        if (emp.id === 'Kanda' && !emp.approverId) {
-          return {
-            ...emp,
-            position: 'manager' as const,
-            approverId: 'admin',
-            approverName: 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)'
-          };
-        }
-        return emp;
-      });
-
-      return loaded;
-    }
-
-    // Initialize mock employees with default groups
-    return MOCK_EMPLOYEES.map((emp, idx) => {
-      let pos: 'employee' | 'manager' | 'admin' = 'employee';
-      if (emp.id === 'KK0031' || emp.id === 'Kanda') pos = 'manager';
-      else if (emp.id === 'admin' || emp.id === 'werasak') pos = 'admin';
-
-      let appID = undefined;
-      let appName = undefined;
-      if (pos === 'employee') {
-        appID = 'KK0031';
-        appName = 'กานดา ยอดรัก (ผู้จัดการ)';
-      } else if (pos === 'manager') {
-        appID = emp.id === 'KK0031' ? 'werasak' : 'admin';
-        appName = emp.id === 'KK0031' ? 'วีระศักดิ์ (werasak) (ผู้คุมระบบ)' : 'ผู้ดูแลระบบและคุมระบบสูงสุด (admin) (ผู้คุมระบบ)';
-      }
-
-      return {
+    // Construct a Map to perform a clean merge.
+    // This ensures all 61 official employees from MOCK_EMPLOYEES are present,
+    // and also preserves any custom-created employees that might be in localStorage.
+    const employeeMap = new Map<string, Employee>();
+    
+    // Initialize with MOCK_EMPLOYEES
+    MOCK_EMPLOYEES.forEach((emp) => {
+      // Default workGroup (set a couple to 'regular' for testing, others to 'adhoc')
+      const defaultWorkGroup: 'regular' | 'adhoc' = (emp.id === 'KK0098' || emp.id === 'KK0159' || emp.id === 'KK0103') ? 'regular' : 'adhoc';
+      employeeMap.set(emp.id.trim().toUpperCase(), {
         ...emp,
-        workGroup: idx === 0 || idx === 2 ? 'regular' : 'adhoc', // EMP001 (Regular), EMP002 (Adhoc), EMP003 (Regular)
-        position: pos,
-        approverId: appID,
-        approverName: appName
-      };
+        id: emp.id.trim().toUpperCase(),
+        workGroup: emp.workGroup || defaultWorkGroup,
+        position: emp.position || 'employee',
+        password: emp.password || '1234'
+      });
     });
+    
+    // Merge with loaded data from localStorage
+    if (loaded && loaded.length > 0) {
+      loaded.forEach(emp => {
+        const idKey = emp.id.trim().toUpperCase();
+        if (!employeeMap.has(idKey)) {
+          // It's a custom-created employee
+          employeeMap.set(idKey, {
+            ...emp,
+            id: idKey,
+            workGroup: emp.workGroup || 'adhoc',
+            position: emp.position || 'employee',
+            password: emp.password || '1234'
+          });
+        } else {
+          // It's an official employee, preserve their modified details if any (e.g. passwords or workGroups)
+          const official = employeeMap.get(idKey)!;
+          employeeMap.set(idKey, {
+            ...official,
+            password: emp.password || official.password,
+            workGroup: emp.workGroup || official.workGroup,
+            name: emp.name || official.name,
+            role: emp.role || official.role,
+            email: emp.email || official.email,
+            department: emp.department || official.department,
+            position: emp.position || official.position,
+            approverId: emp.approverId || official.approverId,
+            approverName: emp.approverName || official.approverName,
+          });
+        }
+      });
+    }
+    
+    const finalEmployees = Array.from(employeeMap.values());
+    
+    // Write back to localStorage to keep it synchronized immediately
+    localStorage.setItem('offsite_employees', JSON.stringify(finalEmployees));
+    
+    return finalEmployees;
   });
 
   useEffect(() => {
@@ -191,55 +193,69 @@ export default function App() {
 
   const [plans, setPlans] = useState<OffSitePlan[]>(() => {
     const saved = localStorage.getItem('offsite_plans');
+    let loaded: OffSitePlan[] = [];
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    // Pre-populate with one approved plan for EMP001 (June 2026) so the user sees a valid setup
-    return [
-      {
-        id: 'PLAN-2026-001',
-        employeeId: 'EMP001',
-        employeeName: 'สมศักดิ์ รักดี',
-        title: 'แผนปฏิบัติงานประจำเดือน มิถุนายน 2026',
-        type: 'monthly',
-        startDate: '2026-06-01',
-        endDate: '2026-06-30',
-        status: 'approved',
-        approvedBy: 'กานดา ยอดรัก (ผู้จัดการ)',
-        approvedAt: '28/05/2026 10:30',
-        createdAt: '2026-05-27',
-        plannedDates: [
-          {
-            date: '2026-06-01',
-            location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
-            purpose: 'ควบคุมงานแข่งขันแข่งขันการ์ดแวนการ์ด (Vanguard Cardfight Thai Tournament)',
-            startTime: '09:00',
-            endTime: '18:00'
-          },
-          {
-            date: '2026-06-08',
-            location: { name: 'แฟชั่น ไอส์แลนด์ (ลานอีเว้นต์ชั้น 3)', lat: 13.8248, lng: 100.6775, address: 'คันนายาว เขตคันนายาว กรุงเทพฯ' },
-            purpose: 'คุมการแข่งขันทัวร์นาเมนต์ Vanguard Weekly Arena ประจำสัปดาห์ปริมณฑล',
-            startTime: '10:00',
-            endTime: '19:00'
-          },
-          {
-            date: '2026-06-13',
-            location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
-            purpose: 'ควบคุมตัดสินคัดเลือกการ์ดไฟท์ แบล็คเคลย์ ทัวร์นาเมนท์เพื่อสิทธิ์เข้าชิงระดับประเทศ',
-            startTime: '09:00',
-            endTime: '18:00'
-          },
-          {
-            date: '2026-06-20',
-            location: { name: 'เดอะมอลล์ บางกะปิ (Zone Toy)', lat: 13.7663, lng: 100.6433, address: 'คลองจั่น เขตบางกะปิ กรุงเทพฯ' },
-            purpose: 'จัดกิจกรรมฝึกเล่นการ์ดเกมและแจกการ์ดฟรีสำหรับเด็กนักเรียน',
-            startTime: '10:00',
-            endTime: '18:00'
-          }
-        ]
+      try { 
+        loaded = JSON.parse(saved); 
+      } catch (e) { 
+        console.error(e); 
       }
-    ];
+    }
+    
+    // If loaded plans contain old employee IDs (like starting with 'EMP'), or if it's empty,
+    // we want to reset or replace them with a valid prepopulated plan for the new 61-employee dataset (e.g. KK0098).
+    const hasOldPlans = loaded.some(p => p.employeeId.startsWith('EMP') || p.employeeId === 'EMP001');
+    if (loaded.length === 0 || hasOldPlans) {
+      const defaultPlans = [
+        {
+          id: 'PLAN-2026-001',
+          employeeId: 'KK0098',
+          employeeName: 'ออนนิตา โต๊ะสะอิ',
+          title: 'แผนปฏิบัติงานประจำเดือน มิถุนายน 2026',
+          type: 'monthly' as const,
+          startDate: '2026-06-01',
+          endDate: '2026-06-30',
+          status: 'approved' as const,
+          approvedBy: 'กานดา ยอดรัก (ผู้จัดการฝ่ายสำนักงาน)',
+          approvedAt: '28/05/2026 10:30',
+          createdAt: '2026-05-27',
+          plannedDates: [
+            {
+              date: '2026-06-01',
+              location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
+              purpose: 'ควบคุมงานแข่งขันแข่งขันการ์ดแวนการ์ด (Vanguard Cardfight Thai Tournament)',
+              startTime: '09:00',
+              endTime: '18:00'
+            },
+            {
+              date: '2026-06-08',
+              location: { name: 'แฟชั่น ไอส์แลนด์ (ลานอีเว้นต์ชั้น 3)', lat: 13.8248, lng: 100.6775, address: 'คันนายาว เขตคันนายาว กรุงเทพฯ' },
+              purpose: 'คุมการแข่งขันทัวร์นาเมนต์ Vanguard Weekly Arena ประจำสัปดาห์ปริมณฑล',
+              startTime: '10:00',
+              endTime: '19:00'
+            },
+            {
+              date: '2026-06-13',
+              location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
+              purpose: 'ควบคุมตัดสินคัดเลือกการ์ดไฟท์ แบล็คเคลย์ ทัวร์นาเมนท์เพื่อสิทธิ์เข้าชิงระดับประเทศ',
+              startTime: '09:00',
+              endTime: '18:00'
+            },
+            {
+              date: '2026-06-20',
+              location: { name: 'เดอะมอลล์ บางกะปิ (Zone Toy)', lat: 13.7663, lng: 100.6433, address: 'คลองจั่น เขตบางกะปิ กรุงเทพฯ' },
+              purpose: 'จัดกิจกรรมฝึกเล่นการ์ดเกมและแจกการ์ดฟรีสำหรับเด็กนักเรียน',
+              startTime: '10:00',
+              endTime: '18:00'
+            }
+          ]
+        }
+      ];
+      localStorage.setItem('offsite_plans', JSON.stringify(defaultPlans));
+      return defaultPlans;
+    }
+    
+    return loaded;
   });
 
   useEffect(() => {
@@ -268,6 +284,13 @@ export default function App() {
   const [changePasswordSuccess, setChangePasswordSuccess] = useState<string>('');
   const [changePasswordError, setChangePasswordError] = useState<string>('');
 
+  // Self-Managed Approval Line States
+  const [isSelfApproverOpen, setIsSelfApproverOpen] = useState<boolean>(false);
+  const [selfApproverId, setSelfApproverId] = useState<string>('');
+  const [selfCustomApproverName, setSelfCustomApproverName] = useState<string>('');
+  const [selfApproverSuccess, setSelfApproverSuccess] = useState<string>('');
+  const [selfApproverError, setSelfApproverError] = useState<string>('');
+
   // Roles & Simulator State
   const [activeRole, setActiveRole] = useState<'employee' | 'manager' | 'admin'>(() => {
     const saved = localStorage.getItem('offsite_logged_in_user');
@@ -290,10 +313,10 @@ export default function App() {
         const parsed = JSON.parse(saved) as Employee;
         return parsed.id;
       } catch (e) {
-        return 'EMP001';
+        return 'KK0098';
       }
     }
-    return 'EMP001';
+    return 'KK0098';
   });
 
   useEffect(() => {
@@ -452,7 +475,7 @@ export default function App() {
     let finalApproverName: string | undefined = undefined;
     let finalApproverId: string | undefined = undefined;
 
-    if (newEmpPosition === 'employee') {
+    if (newEmpPosition === 'employee' || newEmpPosition === 'manager') {
       if (selectedApproverId === 'custom') {
         finalApproverName = customApproverName.trim() || 'ไม่ได้ระบุหัวหน้างานสายตรง';
       } else if (parentApprover) {
@@ -504,7 +527,7 @@ export default function App() {
     let finalApproverName: string | undefined = undefined;
     let finalApproverId: string | undefined = undefined;
 
-    if (editEmpPosition === 'employee') {
+    if (editEmpPosition === 'employee' || editEmpPosition === 'manager') {
       if (editSelectedApproverId === 'custom') {
         finalApproverName = editCustomApproverName.trim() || 'ไม่ได้ระบุหัวหน้างานสายตรง';
       } else if (parentApprover) {
@@ -619,6 +642,72 @@ export default function App() {
     setCurrentPasswordInput('');
     setNewPasswordInput('');
     setConfirmPasswordInput('');
+  };
+
+  const openSelfApproverModal = () => {
+    if (!loggedInUser) return;
+    setSelfApproverSuccess('');
+    setSelfApproverError('');
+    
+    const currId = loggedInUser.approverId || '';
+    const currName = loggedInUser.approverName || '';
+    
+    // Check if the current approver is in our employees list
+    const isKnown = employees.some(e => e.id === currId && currId !== '');
+    if (isKnown) {
+      setSelfApproverId(currId);
+      setSelfCustomApproverName('');
+    } else if (currName) {
+      setSelfApproverId('custom');
+      setSelfCustomApproverName(currName);
+    } else {
+      setSelfApproverId('');
+      setSelfCustomApproverName('');
+    }
+    
+    setIsSelfApproverOpen(true);
+  };
+
+  const handleSelfApproverSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!loggedInUser) return;
+
+    const parentApprover = employees.find(emp => emp.id === selfApproverId);
+    let finalApproverName = '';
+    let finalApproverId: string | undefined = undefined;
+
+    if (selfApproverId === 'custom') {
+      finalApproverName = selfCustomApproverName.trim() || 'ไม่ได้ระบุหัวหน้างานสายตรง';
+    } else if (parentApprover) {
+      finalApproverName = `${parentApprover.name} (${parentApprover.role.split(' (')[0]})`;
+      finalApproverId = parentApprover.id;
+    } else {
+      finalApproverName = 'ไม่ได้ระบุหัวหน้างานสายตรง';
+    }
+
+    const updatedEmployees = employees.map(emp => {
+      if (emp.id === loggedInUser.id) {
+        return {
+          ...emp,
+          approverId: finalApproverId,
+          approverName: finalApproverName
+        };
+      }
+      return emp;
+    });
+
+    setEmployees(updatedEmployees);
+
+    const updatedUser = {
+      ...loggedInUser,
+      approverId: finalApproverId,
+      approverName: finalApproverName
+    };
+
+    setLoggedInUser(updatedUser);
+    localStorage.setItem('offsite_logged_in_user', JSON.stringify(updatedUser));
+
+    setSelfApproverSuccess('อัปเดตผู้อนุมัติประจำตัวของท่านสำเร็จเรียบร้อยแล้ว!');
   };
 
   // Trigger loading real geolocation coordinates
@@ -736,24 +825,18 @@ export default function App() {
       }
     }
 
-    const isRegular = currentSimEmployee.workGroup === 'regular';
+    // Unified Planning & Auto-Approval Logic:
+    // Any employee with an approved plan for this date gets auto-approved,
+    // otherwise the request goes to 'pending' status for manager approval.
     let autoApprove = false;
-    let matchingPlan: OffSitePlan | undefined;
+    let matchingPlan: OffSitePlan | undefined = plans.find(plan => 
+      plan.employeeId === currentSimEmployee.id &&
+      plan.status === 'approved' &&
+      plan.plannedDates.some(pd => pd.date === formDate)
+    );
 
-    if (isRegular) {
-      // Find an approved plan that contains this planned date
-      matchingPlan = plans.find(plan => 
-        plan.employeeId === currentSimEmployee.id &&
-        plan.status === 'approved' &&
-        plan.plannedDates.some(pd => pd.date === formDate)
-      );
-
-      if (!matchingPlan) {
-        alert(`ความปลอดภัยของระบบ: คุณเป็นพนักงาน "กลุ่มทำงานนอกสถานที่เป็นประจำ" ซึ่งต้องยื่นแผนปฏิบัติงานล่วงหน้าและได้รับอนุมัติจากผู้จัดการก่อนยื่นเช็คอินจริง\n\nไม่พบแผนปฏิบัติงานนอกสถานที่ที่ได้รับอนุมัติในวันที่ระบุ (${formDate})\n\nกรุณายื่นเสนอร่าง "แผนปฏิบัติงานล่วงหน้า" (รายสัปดาห์/รายเดือน) ในระบบเพื่อขออนุมัติก่อน หรือแจ้งให้หัวหน้างานยื่นแก้ประเภทกลุ่มเพื่อทำการส่งขออนุมัติรายครั้งปกติ`);
-        return;
-      } else {
-        autoApprove = true;
-      }
+    if (matchingPlan) {
+      autoApprove = true;
     }
 
     const newRequest: OffSiteRequest = {
@@ -1049,19 +1132,25 @@ export default function App() {
 
   // List of all active issues currently reported for the checklist
   const reportedIssuesList = useMemo(() => {
-    return requests.filter(req => {
-      const matchEmployee = dashboardEmployeeFilter === '' || req.employeeId === dashboardEmployeeFilter;
-      const hasIssue = req.checkOut?.issueFound && req.checkOut.issueFound !== 'ไม่มีปัญหา';
-      
-      let matchIssueState = true;
-      if (dashboardIssueStateFilter === 'resolved') {
-        matchIssueState = !!req.checkOut?.issueResolved;
-      } else if (dashboardIssueStateFilter === 'unresolved') {
-        matchIssueState = !req.checkOut?.issueResolved;
-      }
-      
-      return matchEmployee && hasIssue && matchIssueState;
-    });
+    return requests
+      .filter(req => {
+        const matchEmployee = dashboardEmployeeFilter === '' || req.employeeId === dashboardEmployeeFilter;
+        const hasIssue = req.checkOut?.issueFound && req.checkOut.issueFound !== 'ไม่มีปัญหา';
+        
+        let matchIssueState = true;
+        if (dashboardIssueStateFilter === 'resolved') {
+          matchIssueState = !!req.checkOut?.issueResolved;
+        } else if (dashboardIssueStateFilter === 'unresolved') {
+          matchIssueState = !req.checkOut?.issueResolved;
+        }
+        
+        return matchEmployee && hasIssue && matchIssueState;
+      })
+      .sort((a, b) => {
+        const dateTimeA = `${a.date}T${a.checkOut?.time || '00:00:00'}`;
+        const dateTimeB = `${b.date}T${b.checkOut?.time || '00:00:00'}`;
+        return dateTimeB.localeCompare(dateTimeA);
+      });
   }, [requests, dashboardEmployeeFilter, dashboardIssueStateFilter]);
 
   if (!loggedInUser) {
@@ -1149,7 +1238,7 @@ export default function App() {
                 </label>
                 <input
                   type="text"
-                  placeholder="เช่น EMP001 หรือ admin.kk@kidzandkitz.co.th"
+                  placeholder="เช่น KK0098 หรือ werasak.k@kidzandkitz.co.th"
                   value={inputUserId}
                   onChange={(e) => {
                     setInputUserId(e.target.value);
@@ -1296,6 +1385,17 @@ export default function App() {
             <span className="hidden md:inline">เปลี่ยนรหัสผ่าน 🔑</span>
           </button>
 
+          {loggedInUser?.position === 'manager' && (
+            <button
+              onClick={openSelfApproverModal}
+              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
+              title="ตั้งค่า/แก้ไขสายการอนุมัติตนเองของหัวหน้างาน"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span className="hidden md:inline">ตั้งค่าสายอนุมัติของฉัน 👑</span>
+            </button>
+          )}
+
           <button
             id="btn-logout"
             onClick={() => setLoggedInUser(null)}
@@ -1352,6 +1452,36 @@ export default function App() {
         {activeRole === 'manager' && (
           <div className="space-y-8">
             
+            {/* SELF-MANAGED APPROVAL LINE SETTINGS BANNER */}
+            <div className="bg-white border border-earth-border rounded-3xl p-6 shadow-3xs relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="absolute top-0 left-0 w-2 h-full bg-[#8BA888]" />
+              <div className="space-y-1.5 pl-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 bg-[#8BA888]/20 text-[#2E5E2A] text-[10px] font-extrabold rounded-md uppercase tracking-wide">
+                    Self-Managed Approval Line
+                  </span>
+                  <h3 className="font-extrabold text-earth-dark text-base">ระบบตั้งค่าสายการอนุมัติระดับหัวหน้างาน</h3>
+                </div>
+                <p className="text-[11px] text-earth-text/80 max-w-xl leading-relaxed">
+                  เนื่องจากท่านอยู่ในกลุ่ม <span className="font-bold text-earth-dark">หัวหน้างาน / ผู้บังคับบัญชา</span> ท่านสามารถตั้งค่าหรือแก้ไขผู้มีอำนาจอนุมัติคำขอของตนเองขึ้นไปอีกชั้น (เช่น ผู้บริหาร หรือหัวหน้าฝ่าย) ได้ด้วยตนเองโดยตรง เพื่อความรวดเร็วและเป็นส่วนตัวในการส่งต่อใบงานและแผนงานนอกสถานที่
+                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-1">
+                  <span className="font-medium text-earth-text">ผู้มีอำนาจอนุมัติของท่าน ณ ปัจจุบัน:</span>
+                  <span className="font-bold text-earth-primary bg-earth-primary/10 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                    👑 {loggedInUser?.approverName || 'ไม่ได้ระบุผู้อนุมัติ (พิจารณาอนุมัติขั้นสุดท้ายด้วยตนเอง)'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={openSelfApproverModal}
+                className="ml-3 md:ml-0 px-4 py-2.5 bg-[#8BA888] hover:bg-[#799976] text-white rounded-xl text-xs font-black shadow-3xs cursor-pointer select-none transition-all active:scale-95 flex items-center gap-1.5 shrink-0"
+              >
+                📝 ตั้งค่า/แก้ไขสายอนุมัติของฉัน
+              </button>
+            </div>
+
             {/* Quick Metrics Panels */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div id="metric-card-total-visits" className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
@@ -1403,6 +1533,7 @@ export default function App() {
               selectedMonth={selectedMonth}
               employees={employees}
               plans={plans}
+              loggedInUser={loggedInUser}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1474,7 +1605,7 @@ export default function App() {
                             <input
                               type="text"
                               required
-                              placeholder="เช่น EMP004"
+                              placeholder="เช่น KK0225"
                               value={newEmpId}
                               onChange={(e) => {
                                 setNewEmpId(e.target.value.toUpperCase());
@@ -1486,15 +1617,17 @@ export default function App() {
                               type="button"
                               onClick={() => {
                                 setNewEmpSuccessMsg('');
-                                const lastEmp = employees[employees.length - 1];
-                                if (lastEmp && lastEmp.id.startsWith('EMP')) {
-                                  const num = parseInt(lastEmp.id.replace('EMP', ''));
-                                  if (!isNaN(num)) {
-                                    setNewEmpId(`EMP${(num + 1).toString().padStart(3, '0')}`);
-                                    return;
+                                let maxNum = 0;
+                                employees.forEach(emp => {
+                                  if (emp.id.startsWith('KK')) {
+                                    const num = parseInt(emp.id.replace('KK', ''), 10);
+                                    if (!isNaN(num) && num > maxNum) {
+                                      maxNum = num;
+                                    }
                                   }
-                                }
-                                setNewEmpId(`EMP${(employees.length + 1).toString().padStart(3, '0')}`);
+                                });
+                                const nextNum = maxNum > 0 ? maxNum + 1 : 225;
+                                setNewEmpId(`KK${nextNum.toString().padStart(4, '0')}`);
                               }}
                               className="bg-earth-primary/10 text-earth-primary hover:bg-earth-primary/20 border border-earth-primary/20 px-2 rounded-xl text-[10px] font-black transition whitespace-nowrap cursor-pointer select-none"
                             >
@@ -1596,7 +1729,7 @@ export default function App() {
                             </select>
                           </div>
 
-                          {newEmpPosition === 'employee' ? (
+                          {(newEmpPosition === 'employee' || newEmpPosition === 'manager') ? (
                             <div>
                               <label className="block text-[10px] uppercase font-extrabold text-earth-primary mb-1">หัวหน้าผู้อนุมัติ (สายอนุมัติ) *</label>
                               <select
@@ -1627,7 +1760,7 @@ export default function App() {
                           )}
                         </div>
 
-                        {newEmpPosition === 'employee' && selectedApproverId === 'custom' && (
+                        {((newEmpPosition === 'employee' || newEmpPosition === 'manager') && selectedApproverId === 'custom') && (
                           <div className="space-y-1">
                             <label className="block text-[9px] uppercase font-bold text-rose-700">พิมพ์ระบุชื่อหัวหน้าผู้อนุมัติใหม่</label>
                             <input
@@ -1723,7 +1856,7 @@ export default function App() {
                               })()}
                             </div>
                             <span className="text-[9px] bg-earth-primary/15 text-earth-primary border border-earth-primary/20 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
-                              ร่างแผนราย{plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}
+                              ร่างแผนราย{plan.type === 'day' ? 'วัน' : plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}
                             </span>
                           </div>
 
@@ -2115,6 +2248,7 @@ export default function App() {
                   selectedMonth={selectedMonth}
                   employees={employees}
                   plans={plans}
+                  loggedInUser={loggedInUser}
                 />
 
                 {/* PLAN APPROVALS DESK */}
@@ -2159,7 +2293,7 @@ export default function App() {
                               })()}
                             </div>
                             <span className="text-[9px] bg-earth-primary/15 text-earth-primary border border-earth-primary/20 px-2 py-0.5 rounded-full font-bold uppercase shrink-0">
-                              ร่างแผนราย{plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}
+                              ร่างแผนราย{plan.type === 'day' ? 'วัน' : plan.type === 'weekly' ? 'สัปดาห์' : 'เดือน'}
                             </span>
                           </div>
 
@@ -2546,7 +2680,7 @@ export default function App() {
                         </select>
                       </div>
 
-                      {editEmpPosition === 'employee' ? (
+                      {(editEmpPosition === 'employee' || editEmpPosition === 'manager') ? (
                         <div className="bg-amber-100/40 p-3 rounded-xl border border-amber-200/50 space-y-3">
                           <div>
                             <label className="block text-[10px] uppercase font-extrabold text-amber-950 mb-1">หัวหน้างานผู้อนุมัติพิกัด *</label>
@@ -2638,7 +2772,7 @@ export default function App() {
                           <input
                             type="text"
                             required
-                            placeholder="เช่น EMP011 หรือ manager.sales"
+                            placeholder="เช่น KK0225"
                             value={newEmpId}
                             onChange={(e) => {
                               setNewEmpId(e.target.value);
@@ -2873,7 +3007,6 @@ export default function App() {
                       }
 
                       return filtered.map(emp => {
-                        const isRegGroup = emp.workGroup === 'regular';
                         const empPos = emp.position || 'employee';
 
                         return (
@@ -3313,6 +3446,7 @@ export default function App() {
                   selectedMonth={selectedMonth}
                   employees={employees}
                   plans={plans}
+                  loggedInUser={loggedInUser}
                 />
               </div>
             )}
@@ -4153,6 +4287,101 @@ export default function App() {
                   className="flex-1 py-2.5 bg-earth-primary hover:bg-[#7D9A7A] text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-98 text-center"
                 >
                   📝 ยืนยันเปลี่ยนรหัส
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SELF-MANAGED APPROVAL LINE MODAL */}
+      {isSelfApproverOpen && loggedInUser && (
+        <div className="fixed inset-0 bg-[#433E3B]/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-earth-border max-w-md w-full p-6 shadow-2xl space-y-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-[#8BA888]" />
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <h3 className="font-extrabold text-earth-dark text-base flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-earth-primary" />
+                  <span>ตั้งค่าสายการอนุมัติตนเอง 👑</span>
+                </h3>
+                <p className="text-[11px] text-earth-text/80 leading-relaxed">
+                  เลือกผู้มีอำนาจตรวจสอบและลงนามอนุมัติใบงานนอกสถานที่ของท่านเพื่อส่งต่อขึ้นไปอีกระดับหนึ่ง
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSelfApproverSubmit} className="space-y-4">
+              {selfApproverSuccess && (
+                <div className="p-3 bg-[#E2EBE0] border border-[#8BA888]/50 rounded-xl text-[#2E5E2A] text-xs font-bold leading-relaxed">
+                  🎉 {selfApproverSuccess}
+                </div>
+              )}
+
+              {selfApproverError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-bold leading-relaxed">
+                  ⚠️ {selfApproverError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] uppercase font-black text-earth-dark tracking-wider mb-1 flex items-center gap-1">
+                  👑 เลือกผู้อนุมัติจากระบบ *
+                </label>
+                <select
+                  value={selfApproverId}
+                  onChange={(e) => {
+                    setSelfApproverId(e.target.value);
+                    setSelfApproverSuccess('');
+                    setSelfApproverError('');
+                  }}
+                  className="w-full bg-[#FAF9F6] border border-earth-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-earth-primary focus:ring-1 focus:ring-earth-primary shadow-3xs cursor-pointer"
+                >
+                  <option value="">-- ไม่ระบุผู้อนุมัติ (พิจารณาตนเอง) --</option>
+                  {employees
+                    .filter(e => (e.position === 'manager' || e.position === 'admin' || e.role.includes('จัดการ') || e.role.includes('CEO') || e.id === 'KK0031') && e.id !== loggedInUser.id)
+                    .map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.role.split(' (')[0]})
+                      </option>
+                    ))}
+                  <option value="custom">✍️ ระบุหัวหน้างานกำหนดเอง...</option>
+                </select>
+              </div>
+
+              {selfApproverId === 'custom' && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  <label className="block text-[10px] uppercase font-black text-rose-700 tracking-wider mb-1 flex items-center gap-1">
+                    ✍️ ชื่อหัวหน้างานกำหนดเอง (ระบุด้วยตนเอง) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น คุณวีระศักดิ์ (CEO) หรือ คุณกานดา (ผู้จัดการฝ่าย)"
+                    required
+                    value={selfCustomApproverName}
+                    onChange={(e) => {
+                      setSelfCustomApproverName(e.target.value);
+                      setSelfApproverSuccess('');
+                      setSelfApproverError('');
+                    }}
+                    className="w-full bg-[#FAF9F6] border border-rose-300 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 shadow-3xs"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSelfApproverOpen(false)}
+                  className="flex-1 py-2.5 bg-[#F2EFE9] hover:bg-[#E8E4DB] border border-earth-border text-earth-dark rounded-xl text-xs font-bold cursor-pointer transition select-none text-center"
+                >
+                  ปิดหน้าต่าง
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-earth-primary hover:bg-[#799976] text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-98 text-center"
+                >
+                  💾 บันทึกสายอนุมัติ
                 </button>
               </div>
             </form>

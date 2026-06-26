@@ -52,6 +52,7 @@ export interface OffSiteRequest {
 export interface Employee {
   id: string;
   name: string;
+  nickname?: string;
   role: string;
   email: string;
   department: string;
@@ -76,7 +77,7 @@ export interface OffSitePlan {
   employeeId: string;
   employeeName: string;
   title: string; // e.g. "แผนงานเดือนมิถุนายน"
-  type: 'weekly' | 'monthly';
+  type: 'weekly' | 'monthly' | 'day';
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   status: 'pending' | 'approved' | 'rejected';

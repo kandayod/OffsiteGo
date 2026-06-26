@@ -194,27 +194,21 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
         // Find matching popular location coords
         const loc = POPULAR_LOCATIONS.find(l => l.name === formLocationPreset) || POPULAR_LOCATIONS[0];
         
-        const isRegular = currentSimEmployee.workGroup === 'regular';
+        const dateMatch = plans.find(p => 
+          p.employeeId === currentSimEmployee.id && 
+          p.status === 'approved' &&
+          p.plannedDates.some(pd => pd.date === formDate)
+        );
+
         let status = 'pending';
         let successMsg = '';
 
-        if (isRegular) {
-          // Verify with approved plan to perform Auto-Approval
-          const dateMatch = plans.find(p => 
-            p.employeeId === currentSimEmployee.id && 
-            p.status === 'approved' &&
-            p.plannedDates.some(pd => pd.date === formDate)
-          );
-
-          if (dateMatch) {
-            status = 'approved';
-            successMsg = '✅ ตรวจพบแผนการปฏิบัติงานล่วงหน้าที่หัวหน้างานอนุมัติเรียบร้อยแล้ว: คำขอเข้าพื้นที่ได้รับ "อนุมัติทันที" โดยท่านพกแผนสิทธิ์อนุมัติเรียบร้อย';
-          } else {
-            alert('⚠️ แจ้งเตือนข้อตกลง: พนักงานนอกสถานที่กลุ่มประจำ "ต้องเสนอร่างแผนปฏิบัติงานล่วงหน้า" และให้ผู้จัดการกดผ่านอนุมัติล่วงหน้าเสียก่อน จึงส่งคำขอบันทึกเวลาในวันดังกล่าวได้');
-            return;
-          }
+        if (dateMatch) {
+          status = 'approved';
+          successMsg = '✅ ตรวจพบแผนการปฏิบัติงานล่วงหน้าที่หัวหน้างานอนุมัติเรียบร้อยแล้ว: คำขอเข้าพื้นที่ได้รับ "อนุมัติทันที" โดยท่านมีแผนสิทธิ์อนุมัติเรียบร้อย';
         } else {
-          successMsg = '📥 ส่งผลงานขอลงตำแหน่งสำเร็จ (กลุ่มรายสัปดาห์/ครั้ง): คำขอเดินทางของท่านกำลังรองผู้จัดการเข้าทำตรวจทานพิจารณาตามปรกติ';
+          status = 'pending';
+          successMsg = '📥 ส่งผลงานขอลงตำแหน่งสำเร็จ: คำขอเดินทางของท่านกำลังรอบันทึกความถูกต้องและหัวหน้างานพิจารณาตามปกติ';
         }
 
         const newReq = {
@@ -561,15 +555,16 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
                           className="p-2 border rounded-lg bg-white "
                         />
                         <select id="gas-plan-type" className="p-2 border rounded-lg bg-white font-bold">
+                          <option value="day">แผนแบบรายวัน</option>
                           <option value="weekly">แผนแบบรายสัปดาห์</option>
                           <option value="monthly">แผนแบบรายเดือน</option>
                         </select>
                       </div>
 
                       <div className="space-y-3 bg-white p-3.5 rounded-xl border">
-                        <p className="text-[10px] font-bold">รายการจุดพื้นที่และวันที่ระบุระเบียบ (จำลองวันที 13/06/2026):</p>
+                        <p className="text-[10px] font-bold">รายการจุดพื้นที่และวันที่ระบุระเบียบ:</p>
                         <div className="flex flex-col sm:flex-row gap-3 text-xs items-center">
-                          <input type="date" id="gas-pd-date" defaultValue="2026-06-13" className="p-2 border rounded-lg" />
+                          <input type="date" id="gas-pd-date" defaultValue={new Date().toISOString().split('T')[0]} className="p-2 border rounded-lg" />
                           <select id="gas-pd-loc" className="p-2 border rounded-lg flex-1">
                             {POPULAR_LOCATIONS.map((l, i) => <option key={i} value={l.name}>{l.name}</option>)}
                           </select>
@@ -587,7 +582,10 @@ export default function GASPorter({ isOpen, onClose }: GASPorterProps) {
 
                           if (!title.trim()) { alert('กรุณาระบุหัวเรื่องตารางร่าง'); return; }
                           
-                          handlePlanDraftSubmit(title, type, '2026-06-01', '2026-06-30', [
+                          const planStartDate = type === 'day' ? date : date;
+                          const planEndDate = type === 'day' ? date : date;
+
+                          handlePlanDraftSubmit(title, type, planStartDate, planEndDate, [
                             { date, locationPreset: locName, purpose }
                           ]);
                         }}

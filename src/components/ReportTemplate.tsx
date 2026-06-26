@@ -3,9 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { OffSiteRequest } from '../types';
-import { FileText, Printer, CheckCircle, AlertTriangle, Calendar, Clock, MapPin, Building, Sparkles } from 'lucide-react';
+import { 
+  FileText, 
+  Printer, 
+  CheckCircle, 
+  AlertTriangle, 
+  Calendar, 
+  Building, 
+  Sparkles, 
+  ChevronLeft, 
+  Search, 
+  ClipboardList 
+} from 'lucide-react';
 
 interface ReportTemplateProps {
   selectedMonth: string; // YYYY-MM
@@ -17,26 +28,47 @@ interface ReportTemplateProps {
 export default function ReportTemplate({ selectedMonth, requests, selectedEmployeeId, employees }: ReportTemplateProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Local state for search/filter menu criteria
+  const [localMonth, setLocalMonth] = useState(selectedMonth);
+  const [localEmployeeId, setLocalEmployeeId] = useState(selectedEmployeeId);
+  const [isGenerated, setIsGenerated] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Sync state if props change from outside
+  useEffect(() => {
+    setLocalMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    setLocalEmployeeId(selectedEmployeeId);
+  }, [selectedEmployeeId]);
+
+  // Reset generated view if month or employee filters are reset from props explicitly
+  useEffect(() => {
+    setIsGenerated(false);
+  }, [selectedMonth, selectedEmployeeId]);
+
   // Month translation mapping
   const monthThai = useMemo(() => {
-    const [year, month] = selectedMonth.split('-');
+    if (!localMonth) return '';
+    const [year, month] = localMonth.split('-');
     const months = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
     const thaiYear = parseInt(year) + 543;
     return `${months[parseInt(month) - 1]} พ.ศ. ${thaiYear}`;
-  }, [selectedMonth]);
+  }, [localMonth]);
 
-  // Aggregate stats for the selected month and employee
+  // Aggregate stats based on local menu selection
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
-      const matchMonth = req.date.startsWith(selectedMonth);
-      const matchEmployee = selectedEmployeeId === '' || req.employeeId === selectedEmployeeId;
+      const matchMonth = req.date.startsWith(localMonth);
+      const matchEmployee = localEmployeeId === '' || req.employeeId === localEmployeeId;
       const approvedOnly = req.status === 'approved';
       return matchMonth && matchEmployee && approvedOnly;
     });
-  }, [requests, selectedMonth, selectedEmployeeId]);
+  }, [requests, localMonth, localEmployeeId]);
 
   const reportMetrics = useMemo(() => {
     const totalVisits = filteredRequests.length;
@@ -44,7 +76,6 @@ export default function ReportTemplate({ selectedMonth, requests, selectedEmploy
     let totalIssues = 0;
     let resolvedIssues = 0;
     
-    // Set of distinct locations
     const distinctLocations = new Set<string>();
 
     filteredRequests.forEach(req => {
@@ -72,70 +103,248 @@ export default function ReportTemplate({ selectedMonth, requests, selectedEmploy
   }, [filteredRequests]);
 
   const targetEmployee = useMemo(() => {
-    if (!selectedEmployeeId) return null;
-    return employees.find(e => e.id === selectedEmployeeId);
-  }, [selectedEmployeeId, employees]);
+    if (!localEmployeeId) return null;
+    return employees.find(e => e.id === localEmployeeId);
+  }, [localEmployeeId, employees]);
 
+  // Custom PDF/A4 beautifully designed export print layout engine
   const handlePrint = () => {
     const printContent = printRef.current?.innerHTML;
-    const originalContent = document.body.innerHTML;
     
     if (printContent) {
       const win = window.open('', '', 'height=800,width=1000');
       if (win) {
         win.document.write('<html><head><title>รายงานการทำงานนอกสถานที่ - Kidz & Kitz</title>');
+        // Load clean premium font and Tailwind CSS CDN so style rendering matches exactly
+        win.document.write('<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">');
+        win.document.write('<script src="https://cdn.tailwindcss.com"></script>');
+        // Map custom system earth-tones onto tailwind config
+        win.document.write('<script>');
+        win.document.write(`
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  earth: {
+                    primary: '#4E6C50',
+                    secondary: '#AA8B7E',
+                    border: '#E6D5B8',
+                    dark: '#433E3B',
+                    text: '#5c5552',
+                    sidebar: '#FAF8F5'
+                  }
+                }
+              }
+            }
+          }
+        `);
+        win.document.write('</script>');
         win.document.write('<style>');
-        win.document.write('body { font-family: "Inter", sans-serif; padding: 40px; color: #433E3B; background-color: #FAF8F5; }');
-        win.document.write('.text-center { text-align: center; }');
-        win.document.write('.flex { display: flex; }');
-        win.document.write('.justify-between { justify-content: space-between; }');
-        win.document.write('table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; background: white; }');
-        win.document.write('th, td { border: 1px solid #E6D5B8; padding: 10px; text-align: left; }');
-        win.document.write('th { background-color: #FAF8F5; font-weight: bold; color: #433E3B; }');
-        win.document.write('.font-bold { font-weight: bold; }');
-        win.document.write('.badge { display: inline-block; padding: 3px 8px; font-size: 11px; border-radius: 6px; font-weight: bold; }');
-        win.document.write('.badge-green { background: #E2EBE0; color: #2E5E2A; }');
-        win.document.write('.badge-red { background: #FDF2E9; color: #C05621; }');
-        win.document.write('.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; }');
-        win.document.write('.card { border: 1px solid #E6D5B8; padding: 12px; border-radius: 12px; background: white; }');
-        win.document.write('h1, h2, h3, p { margin: 5px 0; }');
-        win.document.write('</style></head><body>');
+        win.document.write(`
+          @media print {
+            body { 
+              -webkit-print-color-adjust: exact !important; 
+              print-color-adjust: exact !important; 
+              background-color: #ffffff !important;
+            }
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            tr { page-break-inside: avoid; }
+            .avoid-break { page-break-inside: avoid; }
+          }
+          body { 
+            font-family: "Sarabun", "Inter", sans-serif; 
+            background-color: #FAF8F5; 
+            color: #433E3B; 
+            padding: 20px;
+          }
+          .overflow-y-auto, .overflow-x-auto {
+            overflow: visible !important;
+            max-height: none !important;
+          }
+        `);
+        win.document.write('</style></head><body class="bg-white">');
+        win.document.write('<div class="p-2">');
         win.document.write(printContent);
+        win.document.write('</div>');
         win.document.write('</body></html>');
         win.document.close();
-        win.print();
+        
+        // Timeout to let tailwind finish compilation before invoking system print modal
+        setTimeout(() => {
+          win.print();
+        }, 800);
       }
     }
   };
 
-  return (
-    <div className="bg-white rounded-3xl border border-earth-border shadow-sm p-6 space-y-6">
-      
-      {/* Upper Action Tools */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-earth-border pb-4 gap-4">
-        <div>
+  // --- LOADER VIEW WHEN GENERATING ---
+  if (isGenerating) {
+    return (
+      <div id="report-generating-skeleton" className="bg-white rounded-3xl border border-earth-border shadow-sm p-8 text-center space-y-6 py-20 animate-pulse">
+        <div className="relative w-20 h-20 mx-auto">
+          <div className="absolute inset-0 rounded-full border-4 border-earth-border border-t-earth-primary animate-spin"></div>
+          <FileText className="w-10 h-10 text-earth-primary absolute inset-0 m-auto animate-bounce" />
+        </div>
+        <div className="space-y-2">
+          <h4 className="font-extrabold text-earth-dark text-base md:text-lg">กำลังประมวลผลสรุปบันทึกและคำนวณระยะพิกัด GPS...</h4>
+          <p className="text-xs text-earth-text max-w-md mx-auto leading-relaxed">
+            ระบบกำลังประมวลผลรายการลงเวลางาน (Check-In Logs), คำนวณความแม่นยำระยะห่างของภูมิศาสตร์ และรวบรวมประวัติปัญหาอุปสรรคเพื่อจัดพิมพ์แบบฟอร์มหนังสือรายงานสรุปงานอย่างเป็นทางการ...
+          </p>
+        </div>
+        <div className="w-64 bg-earth-sidebar h-2 rounded-full mx-auto overflow-hidden border border-earth-border/50">
+          <div className="bg-earth-primary h-full rounded-full animate-pulse" style={{ width: '80%' }}></div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- MENU TO CALL REPORT (SEARCH OPTIONS BEFORE RETRIEVING) ---
+  if (!isGenerated) {
+    return (
+      <div id="report-launcher-menu" className="bg-white rounded-3xl border border-earth-border shadow-sm p-6 space-y-6 animate-fadeIn">
+        <div className="border-b border-earth-border pb-4">
           <h3 className="font-bold text-earth-dark text-lg flex items-center gap-2">
-            <FileText className="w-5 h-5 text-earth-primary animate-pulse" />
-            <span>รายงานสรุปรายเดือนและประวัติปฏิบัติงาน (System Report Template)</span>
+            <ClipboardList className="w-5 h-5 text-earth-primary animate-bounce" />
+            <span>📋 เมนูเรียกรายงานสรุปปฏิบัติงานนอกสถานที่ (System Report Launcher)</span>
           </h3>
-          <p className="text-earth-text/80 text-xs">สรุปข้อมูลภารกิจทั้งหมดส่งผู้บังคับบัญชาแบบอัตโนมัติตามโครงสร้างรายงานราชการ/เอกชน</p>
+          <p className="text-earth-text/80 text-xs mt-1">
+            กรุณาระบุขอบเขตเงื่อนไขและประจำเดือนที่ต้องการสรุปสถิติลงปฏิบัติงานจริง เพื่อสร้างชุดเอกสารประเมินอย่างเป็นทางการ
+          </p>
         </div>
 
-        <button
-          onClick={handlePrint}
-          disabled={filteredRequests.length === 0}
-          className="w-full sm:w-auto bg-earth-primary hover:bg-[#799976] border border-transparent text-white font-sans text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:bg-earth-sidebar disabled:border-earth-border disabled:text-earth-text/50 disabled:cursor-not-allowed transition-all"
-        >
-          <Printer className="w-4 h-4" />
-          <span>พิมพ์เอกสารรายงาน (PDF / Print)</span>
-        </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Select Month field */}
+          <div className="space-y-2">
+            <label className="block text-xs font-extrabold text-earth-dark uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-earth-primary" />
+              <span>ประจำเดือนรอบรายงาน (Report Month)</span>
+            </label>
+            <input
+              type="month"
+              value={localMonth}
+              onChange={(e) => setLocalMonth(e.target.value)}
+              className="w-full bg-[#FAF8F5] border border-earth-border text-earth-dark font-sans text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-earth-primary/40 transition-all cursor-pointer font-bold"
+            />
+          </div>
+
+          {/* Target Employee selection */}
+          <div className="space-y-2">
+            <label className="block text-xs font-extrabold text-earth-dark uppercase tracking-wider flex items-center gap-1.5">
+              <Building className="w-3.5 h-3.5 text-earth-primary" />
+              <span>พนักงานระบุเป้าหมาย (Target Employee)</span>
+            </label>
+            {selectedEmployeeId ? (
+              // Locked option when initialized with employee role context
+              <div className="w-full bg-earth-sidebar border border-earth-border text-earth-dark/70 font-sans text-sm rounded-xl px-4 py-3 font-bold select-none flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-earth-primary animate-pulse"></span>
+                <span>👤 {employees.find(e => e.id === selectedEmployeeId)?.name || 'พนักงานผู้ปฏิบัติงาน'} (สิทธิ์ข้อมูลของคุณ)</span>
+              </div>
+            ) : (
+              // Multi-dropdown selector for manager or admin role context
+              <select
+                value={localEmployeeId}
+                onChange={(e) => setLocalEmployeeId(e.target.value)}
+                className="w-full bg-[#FAF8F5] border border-earth-border text-earth-dark font-sans text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-earth-primary/40 transition-all cursor-pointer font-bold"
+              >
+                <option value="">👤 พนักงานทั้งหมดในระบบ (ภาพรวมองค์การ)</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    👤 {emp.name} ({emp.role} - {emp.department})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* Security / Quality Guidelines */}
+        <div className="bg-[#FAF8F5] p-4 rounded-2xl border border-earth-border text-xs text-earth-text/85 space-y-1.5">
+          <p className="font-bold text-earth-dark flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5 text-earth-primary" />
+            <span>คู่มือกฎเกณฑ์การจัดพิมพ์สรุป:</span>
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-earth-text/90">
+            <li>ข้อมูลสรุปจะดึงจากรายการลงปฏิบัติการจริงที่ **ได้รับการตรวจสอบและรับรองสิทธิ์ (Approved)** เท่านั้น</li>
+            <li>ระบบความปลอดภัย GPS จะวิเคราะห์ระยะห่างพิกัดจริง ณ ช่วงเวลาเข้าสถานที่จริง</li>
+            <li>แบบฟอร์ม PDF สรุปงานผ่านระบบนี้ รองรับมาตรฐานการตรวจสอบของฝ่ายบัญชีและสวัสดิการ</li>
+          </ul>
+        </div>
+
+        {/* Generate Trigger Button */}
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={() => {
+              setIsGenerating(true);
+              setTimeout(() => {
+                setIsGenerating(false);
+                setIsGenerated(true);
+              }, 700);
+            }}
+            className="w-full sm:w-auto bg-earth-primary hover:bg-[#3D5C3F] text-white font-sans text-xs font-black py-3 px-8 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all cursor-pointer"
+          >
+            <Search className="w-4 h-4 animate-bounce" />
+            <span>🔍 ประมวลผลและเรียกดูรายงานสรุป (Generate Report)</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- REPORT GENERATED & DISPLAY DETAILS ---
+  return (
+    <div id="report-rendered-view" className="bg-white rounded-3xl border border-earth-border shadow-sm p-6 space-y-6 animate-fadeIn">
+      
+      {/* Upper Menu Back and PDF Print Action Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-earth-border pb-4 gap-4">
+        <div>
+          <button
+            onClick={() => setIsGenerated(false)}
+            className="text-earth-primary hover:text-[#3D5C3F] font-bold text-xs flex items-center gap-1 mb-1 cursor-pointer transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>ย้อนกลับไปเมนูเรียกรายงาน (Back to Menu)</span>
+          </button>
+          <h3 className="font-bold text-earth-dark text-lg flex items-center gap-2 mt-1">
+            <FileText className="w-5 h-5 text-earth-primary" />
+            <span>รายงานสรุปและประวัติปฏิบัติงาน (System Report Copy)</span>
+          </h3>
+          <p className="text-earth-text/80 text-xs">สรุปความสำเร็จจัดหาและสรุปประจำเดือน <strong className="text-earth-dark">{monthThai}</strong> | เป้าหมาย: <strong className="text-earth-dark">{targetEmployee ? targetEmployee.name : 'พนักงานทั้งหมดในระบบ'}</strong></p>
+        </div>
+
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setIsGenerated(false)}
+            className="bg-white hover:bg-earth-sidebar border border-earth-border text-earth-dark font-sans text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+          >
+            <span>เปลี่ยนเงื่อนไข</span>
+          </button>
+          <button
+            onClick={handlePrint}
+            disabled={filteredRequests.length === 0}
+            className="flex-1 sm:flex-initial bg-earth-primary hover:bg-[#3D5C3F] border border-transparent text-white font-sans text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:bg-earth-sidebar disabled:border-earth-border disabled:text-earth-text/50 disabled:cursor-not-allowed transition-all"
+          >
+            <Printer className="w-4 h-4" />
+            <span>พิมพ์สรุป PDF (A4 Export)</span>
+          </button>
+        </div>
       </div>
 
       {filteredRequests.length === 0 ? (
-        <div className="text-center py-16 text-earth-text/70 border-2 border-dashed border-earth-border rounded-3xl bg-[#FAF8F5]">
-          <Calendar className="w-12 h-12 text-earth-primary/40 mx-auto mb-3" />
-          <h4 className="font-bold text-sm text-earth-dark mb-1">ไม่พบข้อมูลที่ได้รับอนุมัติในรอบเดือนนี้</h4>
-          <p className="text-xs text-earth-text/80 max-w-sm mx-auto leading-relaxed">ข้อมูลสรุปจะพร้อมใช้งานเมื่อมีการเปลี่ยนตัวเลือกแผนกพนักงาน หรือพนักงานมีการเช็คอินและกรอกบันทึกปัญหาที่หน้างานในรอบเดือน {monthThai}</p>
+        <div className="text-center py-16 text-earth-text/70 border-2 border-dashed border-earth-border rounded-3xl bg-[#FAF8F5] space-y-3">
+          <Calendar className="w-12 h-12 text-earth-primary/40 mx-auto" />
+          <div>
+            <h4 className="font-bold text-sm text-earth-dark">ไม่พบข้อมูลปฏิบัติงานนอกสถานที่ที่ได้รับอนุมัติในรอบเงื่อนไขนี้</h4>
+            <p className="text-xs text-earth-text/80 max-w-sm mx-auto leading-relaxed mt-1">ข้อมูลจะแสดงผลเมื่อพนักงานมีรายการปฏิบัติงานในเดือน {monthThai} ที่หัวหน้างานได้รับการอนุมัติการลงชื่อและส่งรายงานเรียบร้อยแล้ว</p>
+          </div>
+          <button
+            onClick={() => setIsGenerated(false)}
+            className="bg-white hover:bg-earth-sidebar border border-earth-border text-earth-dark font-sans text-xs font-bold py-2 px-4 rounded-xl inline-flex items-center gap-1 cursor-pointer transition-all"
+          >
+            <span>กลับไปแก้ไขและค้นหาใหม่</span>
+          </button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -183,7 +392,7 @@ export default function ReportTemplate({ selectedMonth, requests, selectedEmploy
                 <div className="text-center md:text-right border border-earth-border p-2.5 rounded-xl bg-[#FAF8F5] font-serif">
                   <p className="text-xs font-bold text-earth-dark">เอกสารรายงานสรุปผลปฎิบัติงาน</p>
                   <p className="text-[10px] text-earth-text/60 font-mono mt-0.5">REF: RPT-OFFSITE-2026</p>
-                  <p className="text-xs font-black text-earth-primary font-mono mt-1">{selectedMonth}</p>
+                  <p className="text-xs font-black text-earth-primary font-mono mt-1">{localMonth}</p>
                 </div>
               </div>
 
