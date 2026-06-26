@@ -875,10 +875,13 @@ export default function App() {
   const triggerApprove = (id: string, approve: boolean) => {
     setRequests(prev => prev.map(req => {
       if (req.id === id) {
+        const approvedByText = loggedInUser 
+          ? `${loggedInUser.name} (${loggedInUser.position === 'admin' ? 'ผู้ดูแลระบบ' : loggedInUser.role})`
+          : 'หัวหน้างานฝ่ายวิจัยการกระจายและการแข่งขัน';
         return {
           ...req,
           status: approve ? 'approved' : 'rejected',
-          approvedBy: 'หัวหน้างานฝ่ายวิจัยการกระจายและการแข่งขัน',
+          approvedBy: approvedByText,
           approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
         };
       }
@@ -1082,6 +1085,7 @@ export default function App() {
     if (!loggedInUser) return [];
     return requests.filter(r => {
       if (r.status !== 'pending') return false;
+      if (loggedInUser.position === 'admin') return true;
       const emp = employees.find(e => e.id === r.employeeId);
       return emp?.approverId === loggedInUser.id;
     });
@@ -1091,6 +1095,7 @@ export default function App() {
     if (!loggedInUser) return [];
     return plans.filter(p => {
       if (p.status !== 'pending') return false;
+      if (loggedInUser.position === 'admin') return true;
       const emp = employees.find(e => e.id === p.employeeId);
       return emp?.approverId === loggedInUser.id;
     });
@@ -1385,16 +1390,7 @@ export default function App() {
             <span className="hidden md:inline">เปลี่ยนรหัสผ่าน 🔑</span>
           </button>
 
-          {loggedInUser?.position === 'manager' && (
-            <button
-              onClick={openSelfApproverModal}
-              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-3xs"
-              title="ตั้งค่า/แก้ไขสายการอนุมัติตนเองของหัวหน้างาน"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span className="hidden md:inline">ตั้งค่าสายอนุมัติของฉัน 👑</span>
-            </button>
-          )}
+
 
           <button
             id="btn-logout"
@@ -1452,36 +1448,6 @@ export default function App() {
         {activeRole === 'manager' && (
           <div className="space-y-8">
             
-            {/* SELF-MANAGED APPROVAL LINE SETTINGS BANNER */}
-            <div className="bg-white border border-earth-border rounded-3xl p-6 shadow-3xs relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="absolute top-0 left-0 w-2 h-full bg-[#8BA888]" />
-              <div className="space-y-1.5 pl-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2 py-0.5 bg-[#8BA888]/20 text-[#2E5E2A] text-[10px] font-extrabold rounded-md uppercase tracking-wide">
-                    Self-Managed Approval Line
-                  </span>
-                  <h3 className="font-extrabold text-earth-dark text-base">ระบบตั้งค่าสายการอนุมัติระดับหัวหน้างาน</h3>
-                </div>
-                <p className="text-[11px] text-earth-text/80 max-w-xl leading-relaxed">
-                  เนื่องจากท่านอยู่ในกลุ่ม <span className="font-bold text-earth-dark">หัวหน้างาน / ผู้บังคับบัญชา</span> ท่านสามารถตั้งค่าหรือแก้ไขผู้มีอำนาจอนุมัติคำขอของตนเองขึ้นไปอีกชั้น (เช่น ผู้บริหาร หรือหัวหน้าฝ่าย) ได้ด้วยตนเองโดยตรง เพื่อความรวดเร็วและเป็นส่วนตัวในการส่งต่อใบงานและแผนงานนอกสถานที่
-                </p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-1">
-                  <span className="font-medium text-earth-text">ผู้มีอำนาจอนุมัติของท่าน ณ ปัจจุบัน:</span>
-                  <span className="font-bold text-earth-primary bg-earth-primary/10 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
-                    👑 {loggedInUser?.approverName || 'ไม่ได้ระบุผู้อนุมัติ (พิจารณาอนุมัติขั้นสุดท้ายด้วยตนเอง)'}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={openSelfApproverModal}
-                className="ml-3 md:ml-0 px-4 py-2.5 bg-[#8BA888] hover:bg-[#799976] text-white rounded-xl text-xs font-black shadow-3xs cursor-pointer select-none transition-all active:scale-95 flex items-center gap-1.5 shrink-0"
-              >
-                📝 ตั้งค่า/แก้ไขสายอนุมัติของฉัน
-              </button>
-            </div>
-
             {/* Quick Metrics Panels */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div id="metric-card-total-visits" className="bg-white rounded-2xl border border-earth-border shadow-sm p-4 flex flex-col justify-between">
@@ -1716,11 +1682,7 @@ export default function App() {
                                 const val = e.target.value as 'employee' | 'manager';
                                 setNewEmpPosition(val);
                                 setNewEmpSuccessMsg('');
-                                if (val === 'manager') {
-                                  setSelectedApproverId('none');
-                                } else {
-                                  setSelectedApproverId('KK0031');
-                                }
+                                setSelectedApproverId('KK0031');
                               }}
                               className="w-full bg-white border border-earth-border rounded-xl px-2 py-1.5 font-bold outline-none shadow-3xs text-xs cursor-pointer"
                             >
@@ -2865,7 +2827,7 @@ export default function App() {
                             </select>
                           </div>
 
-                          {newEmpPosition === 'employee' ? (
+                          {(newEmpPosition === 'employee' || newEmpPosition === 'manager') ? (
                             <div>
                               <label className="block text-[10px] uppercase font-extrabold text-earth-primary mb-1">สายอนุมัติผู้ดูแลพิกัด *</label>
                               <select
@@ -2896,7 +2858,7 @@ export default function App() {
                           )}
                         </div>
 
-                        {newEmpPosition === 'employee' && selectedApproverId === 'custom' && (
+                        {((newEmpPosition === 'employee' || newEmpPosition === 'manager') && selectedApproverId === 'custom') && (
                           <div className="space-y-1">
                             <label className="block text-[9px] uppercase font-bold text-rose-700">พิมพ์ระบุหัวหน้าสายตรง</label>
                             <input

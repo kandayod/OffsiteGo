@@ -82,9 +82,9 @@ export default function ManagerCalendar({ requests, selectedMonth, employees, pl
       }
     });
     
-    // FILTER FOR ACTUAL MODE: Only show the logged-in user themselves and their subordinates in the approval line.
+    // FILTER FOR ACTUAL MODE: Only show the logged-in user themselves and their subordinates in the approval line. Bypassed for Admin.
     let filteredDayReqs = dayReqs;
-    if (loggedInUser) {
+    if (loggedInUser && loggedInUser.position !== 'admin') {
       filteredDayReqs = dayReqs.filter(req => {
         const isSelf = req.employeeId === loggedInUser.id;
         const emp = employees.find(e => e.id === req.employeeId);
