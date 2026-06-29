@@ -87,90 +87,81 @@ export default function App() {
 
   // Intercepting setters that write to Firestore and raw state
   const setRequests = (updater: React.SetStateAction<OffSiteRequest[]>) => {
-    let next: OffSiteRequest[];
-    if (typeof updater === 'function') {
-      next = (updater as Function)(requests);
-    } else {
-      next = updater;
-    }
+    rawSetRequests(prev => {
+      const next = typeof updater === 'function' ? (updater as Function)(prev) : updater;
+      
+      const prevMap = new Map(prev.map(r => [r.id, r]));
+      const nextMap = new Map(next.map(r => [r.id, r]));
 
-    const prevMap = new Map(requests.map(r => [r.id, r]));
-    const nextMap = new Map(next.map(r => [r.id, r]));
+      // Identify and execute Firestore writes for added/updated requests
+      next.forEach(r => {
+        const prevReq = prevMap.get(r.id);
+        if (!prevReq || JSON.stringify(prevReq) !== JSON.stringify(r)) {
+          saveRequest(r).catch(console.error);
+        }
+      });
 
-    // Identify and execute Firestore writes for added/updated requests
-    next.forEach(r => {
-      const prevReq = prevMap.get(r.id);
-      if (!prevReq || JSON.stringify(prevReq) !== JSON.stringify(r)) {
-        saveRequest(r).catch(console.error);
-      }
+      // Identify and execute Firestore deletes for removed requests
+      prev.forEach(r => {
+        if (!nextMap.has(r.id)) {
+          deleteRequestFromFirestore(r.id).catch(console.error);
+        }
+      });
+
+      return next;
     });
-
-    // Identify and execute Firestore deletes for removed requests
-    requests.forEach(r => {
-      if (!nextMap.has(r.id)) {
-        deleteRequestFromFirestore(r.id).catch(console.error);
-      }
-    });
-
-    rawSetRequests(next);
   };
 
   const setPlans = (updater: React.SetStateAction<OffSitePlan[]>) => {
-    let next: OffSitePlan[];
-    if (typeof updater === 'function') {
-      next = (updater as Function)(plans);
-    } else {
-      next = updater;
-    }
+    rawSetPlans(prev => {
+      const next = typeof updater === 'function' ? (updater as Function)(prev) : updater;
+      
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      const nextMap = new Map(next.map(p => [p.id, p]));
 
-    const prevMap = new Map(plans.map(p => [p.id, p]));
-    const nextMap = new Map(next.map(p => [p.id, p]));
+      // Identify and execute Firestore writes for added/updated plans
+      next.forEach(p => {
+        const prevPlan = prevMap.get(p.id);
+        if (!prevPlan || JSON.stringify(prevPlan) !== JSON.stringify(p)) {
+          savePlan(p).catch(console.error);
+        }
+      });
 
-    // Identify and execute Firestore writes for added/updated plans
-    next.forEach(p => {
-      const prevPlan = prevMap.get(p.id);
-      if (!prevPlan || JSON.stringify(prevPlan) !== JSON.stringify(p)) {
-        savePlan(p).catch(console.error);
-      }
+      // Identify and execute Firestore deletes for removed plans
+      prev.forEach(p => {
+        if (!nextMap.has(p.id)) {
+          deletePlanFromFirestore(p.id).catch(console.error);
+        }
+      });
+
+      return next;
     });
-
-    // Identify and execute Firestore deletes for removed plans
-    plans.forEach(p => {
-      if (!nextMap.has(p.id)) {
-        deletePlanFromFirestore(p.id).catch(console.error);
-      }
-    });
-
-    rawSetPlans(next);
   };
 
   const setEmployees = (updater: React.SetStateAction<Employee[]>) => {
-    let next: Employee[];
-    if (typeof updater === 'function') {
-      next = (updater as Function)(employees);
-    } else {
-      next = updater;
-    }
+    rawSetEmployees(prev => {
+      const next = typeof updater === 'function' ? (updater as Function)(prev) : updater;
+      
+      const prevMap = new Map(prev.map(e => [e.id, e]));
+      const nextMap = new Map(next.map(e => [e.id, e]));
 
-    const prevMap = new Map(employees.map(e => [e.id, e]));
-    const nextMap = new Map(next.map(e => [e.id, e]));
+      // Identify and execute Firestore writes for added/updated employees
+      next.forEach(e => {
+        const prevEmp = prevMap.get(e.id);
+        if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
+          saveEmployee(e).catch(console.error);
+        }
+      });
 
-    // Identify and execute Firestore writes for added/updated employees
-    next.forEach(e => {
-      const prevEmp = prevMap.get(e.id);
-      if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
-        saveEmployee(e).catch(console.error);
-      }
+      // Identify and execute Firestore deletes for removed employees
+      prev.forEach(e => {
+        if (!nextMap.has(e.id)) {
+          deleteEmployeeFromFirestore(e.id).catch(console.error);
+        }
+      });
+
+      return next;
     });
-
-    // Identify and execute Firestore deletes for removed employees
-    employees.forEach(e => {
-      if (!nextMap.has(e.id)) {
-        deleteEmployeeFromFirestore(e.id).catch(console.error);
-      }
-    });
-
-    rawSetEmployees(next);
   };
 
   // Setup Real-Time Subscriptions to Firestore on mount with incremental seeding
