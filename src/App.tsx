@@ -87,241 +87,267 @@ export default function App() {
 
   // Intercepting setters that write to Firestore and raw state
   const setRequests = (updater: React.SetStateAction<OffSiteRequest[]>) => {
+    let next: OffSiteRequest[];
     if (typeof updater === 'function') {
-      rawSetRequests(prev => {
-        const next = updater(prev);
-        const prevMap = new Map(prev.map(r => [r.id, r]));
-        const nextIds = new Set(next.map(r => r.id));
-        next.forEach(r => {
-          const prevReq = prevMap.get(r.id);
-          if (!prevReq || JSON.stringify(prevReq) !== JSON.stringify(r)) {
-            saveRequest(r).catch(console.error);
-          }
-        });
-        prev.forEach(r => {
-          if (!nextIds.has(r.id)) {
-            deleteRequestFromFirestore(r.id).catch(console.error);
-          }
-        });
-        return next;
-      });
+      next = (updater as Function)(requests);
     } else {
-      rawSetRequests(updater);
-      updater.forEach(r => saveRequest(r).catch(console.error));
+      next = updater;
     }
+
+    const prevMap = new Map(requests.map(r => [r.id, r]));
+    const nextMap = new Map(next.map(r => [r.id, r]));
+
+    // Identify and execute Firestore writes for added/updated requests
+    next.forEach(r => {
+      const prevReq = prevMap.get(r.id);
+      if (!prevReq || JSON.stringify(prevReq) !== JSON.stringify(r)) {
+        saveRequest(r).catch(console.error);
+      }
+    });
+
+    // Identify and execute Firestore deletes for removed requests
+    requests.forEach(r => {
+      if (!nextMap.has(r.id)) {
+        deleteRequestFromFirestore(r.id).catch(console.error);
+      }
+    });
+
+    rawSetRequests(next);
   };
 
   const setPlans = (updater: React.SetStateAction<OffSitePlan[]>) => {
+    let next: OffSitePlan[];
     if (typeof updater === 'function') {
-      rawSetPlans(prev => {
-        const next = updater(prev);
-        const prevMap = new Map(prev.map(p => [p.id, p]));
-        const nextIds = new Set(next.map(p => p.id));
-        next.forEach(p => {
-          const prevPlan = prevMap.get(p.id);
-          if (!prevPlan || JSON.stringify(prevPlan) !== JSON.stringify(p)) {
-            savePlan(p).catch(console.error);
-          }
-        });
-        prev.forEach(p => {
-          if (!nextIds.has(p.id)) {
-            deletePlanFromFirestore(p.id).catch(console.error);
-          }
-        });
-        return next;
-      });
+      next = (updater as Function)(plans);
     } else {
-      rawSetPlans(updater);
-      updater.forEach(p => savePlan(p).catch(console.error));
+      next = updater;
     }
+
+    const prevMap = new Map(plans.map(p => [p.id, p]));
+    const nextMap = new Map(next.map(p => [p.id, p]));
+
+    // Identify and execute Firestore writes for added/updated plans
+    next.forEach(p => {
+      const prevPlan = prevMap.get(p.id);
+      if (!prevPlan || JSON.stringify(prevPlan) !== JSON.stringify(p)) {
+        savePlan(p).catch(console.error);
+      }
+    });
+
+    // Identify and execute Firestore deletes for removed plans
+    plans.forEach(p => {
+      if (!nextMap.has(p.id)) {
+        deletePlanFromFirestore(p.id).catch(console.error);
+      }
+    });
+
+    rawSetPlans(next);
   };
 
   const setEmployees = (updater: React.SetStateAction<Employee[]>) => {
+    let next: Employee[];
     if (typeof updater === 'function') {
-      rawSetEmployees(prev => {
-        const next = updater(prev);
-        const prevMap = new Map(prev.map(e => [e.id, e]));
-        const nextIds = new Set(next.map(e => e.id));
-        next.forEach(e => {
-          const prevEmp = prevMap.get(e.id);
-          if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
-            saveEmployee(e).catch(console.error);
-          }
-        });
-        prev.forEach(e => {
-          if (!nextIds.has(e.id)) {
-            deleteEmployeeFromFirestore(e.id).catch(console.error);
-          }
-        });
-        return next;
-      });
+      next = (updater as Function)(employees);
     } else {
-      rawSetEmployees(updater);
-      updater.forEach(e => saveEmployee(e).catch(console.error));
+      next = updater;
     }
+
+    const prevMap = new Map(employees.map(e => [e.id, e]));
+    const nextMap = new Map(next.map(e => [e.id, e]));
+
+    // Identify and execute Firestore writes for added/updated employees
+    next.forEach(e => {
+      const prevEmp = prevMap.get(e.id);
+      if (!prevEmp || JSON.stringify(prevEmp) !== JSON.stringify(e)) {
+        saveEmployee(e).catch(console.error);
+      }
+    });
+
+    // Identify and execute Firestore deletes for removed employees
+    employees.forEach(e => {
+      if (!nextMap.has(e.id)) {
+        deleteEmployeeFromFirestore(e.id).catch(console.error);
+      }
+    });
+
+    rawSetEmployees(next);
   };
 
-  // Setup Real-Time Subscriptions to Firestore on mount
+  // Setup Real-Time Subscriptions to Firestore on mount with incremental seeding
   useEffect(() => {
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      if (snapshot.empty) {
-        console.log("Seeding employees to Firestore...");
+      const emps: Employee[] = [];
+      const existingIds = new Set<string>();
+      
+      snapshot.forEach(doc => {
+        const data = doc.data() as Employee;
+        emps.push(data);
+        existingIds.add(data.id.trim().toUpperCase());
+      });
+
+      // Incremental seeding: Check if any mock employee is missing in Firestore
+      const missingMocks = MOCK_EMPLOYEES.filter(mock => {
+        return !existingIds.has(mock.id.trim().toUpperCase());
+      });
+
+      if (missingMocks.length > 0) {
+        console.log(`Incremental Seeding: Writing ${missingMocks.length} missing mock employees to Firestore...`);
         const batch = writeBatch(db);
-        const employeeMap = new Map<string, Employee>();
-        
-        MOCK_EMPLOYEES.forEach((emp) => {
+        missingMocks.forEach(emp => {
           const defaultWorkGroup: 'regular' | 'adhoc' = (emp.id === 'KK0098' || emp.id === 'KK0159' || emp.id === 'KK0103') ? 'regular' : 'adhoc';
-          employeeMap.set(emp.id.trim().toUpperCase(), {
+          const normalizedEmp: Employee = {
             ...emp,
             id: emp.id.trim().toUpperCase(),
             workGroup: emp.workGroup || defaultWorkGroup,
             position: emp.position || 'employee',
             password: emp.password || '1234'
-          });
+          };
+          const docRef = doc(db, 'employees', normalizedEmp.id);
+          batch.set(docRef, normalizedEmp);
+          emps.push(normalizedEmp);
         });
-        
-        const finalEmployees = Array.from(employeeMap.values());
-        finalEmployees.forEach((emp) => {
-          const docRef = doc(db, 'employees', emp.id.trim().toUpperCase());
-          batch.set(docRef, emp);
-        });
-        batch.commit().then(() => {
-          rawSetEmployees(finalEmployees);
-          localStorage.setItem('offsite_employees', JSON.stringify(finalEmployees));
-        }).catch(console.error);
-      } else {
-        const emps: Employee[] = [];
-        snapshot.forEach(doc => {
-          emps.push(doc.data() as Employee);
-        });
-        rawSetEmployees(emps);
-        localStorage.setItem('offsite_employees', JSON.stringify(emps));
+        batch.commit().catch(console.error);
       }
+
+      rawSetEmployees(emps);
+      localStorage.setItem('offsite_employees', JSON.stringify(emps));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'employees');
     });
 
     const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
-      if (snapshot.empty) {
-        console.log("Seeding requests to Firestore...");
+      const reqs: OffSiteRequest[] = [];
+      const existingIds = new Set<string>();
+      
+      snapshot.forEach(doc => {
+        const data = doc.data() as OffSiteRequest;
+        reqs.push(data);
+        existingIds.add(data.id);
+      });
+
+      // Incremental seeding: Check if any mock requests are missing in Firestore
+      const mappedMocks = MOCK_REQUESTS.map(r => {
+        if (r.employeeId === 'EMP001') {
+          return {
+            ...r,
+            employeeId: 'KK0098',
+            employeeName: 'ออนนิตา โต๊ะสะอิ',
+            role: 'หัวหน้าแผนกส่วนงานทรัพยากรบุคคล',
+            approvedBy: 'กานดา ยอดรัก'
+          };
+        }
+        if (r.employeeId === 'EMP002') {
+          return {
+            ...r,
+            employeeId: 'KK0118',
+            employeeName: 'พีรศักดิ์ ผลทวี',
+            role: 'เจ้าหน้าที่การตลาดและพัฒนาชุมชน',
+            approvedBy: 'อุดม เรืองวิไลรัตน์'
+          };
+        }
+        if (r.employeeId === 'EMP003') {
+          return {
+            ...r,
+            employeeId: 'KK0159',
+            employeeName: 'อภิญญา หวังมี',
+            role: 'เจ้าหน้าที่บัญชีเจ้าหนี้',
+            approvedBy: 'กานดา ยอดรัก'
+          };
+        }
+        return r;
+      });
+
+      const missingMocks = mappedMocks.filter(mock => !existingIds.has(mock.id));
+
+      if (missingMocks.length > 0) {
+        console.log(`Incremental Seeding: Writing ${missingMocks.length} missing mock requests to Firestore...`);
         const batch = writeBatch(db);
-        const mappedRequests = MOCK_REQUESTS.map(r => {
-          if (r.employeeId === 'EMP001') {
-            return {
-              ...r,
-              employeeId: 'KK0098',
-              employeeName: 'ออนนิตา โต๊ะสะอิ',
-              role: 'หัวหน้าแผนกส่วนงานทรัพยากรบุคคล',
-              approvedBy: 'กานดา ยอดรัก'
-            };
-          }
-          if (r.employeeId === 'EMP002') {
-            return {
-              ...r,
-              employeeId: 'KK0118',
-              employeeName: 'พีรศักดิ์ ผลทวี',
-              role: 'เจ้าหน้าที่การตลาดและพัฒนาชุมชน',
-              approvedBy: 'อุดม เรืองวิไลรัตน์'
-            };
-          }
-          if (r.employeeId === 'EMP003') {
-            return {
-              ...r,
-              employeeId: 'KK0159',
-              employeeName: 'อภิญญา หวังมี',
-              role: 'เจ้าหน้าที่บัญชีเจ้าหนี้',
-              approvedBy: 'กานดา ยอดรัก'
-            };
-          }
-          return r;
-        });
-        mappedRequests.forEach((req) => {
+        missingMocks.forEach(req => {
           const docRef = doc(db, 'requests', req.id);
           batch.set(docRef, req);
+          reqs.push(req);
         });
-        batch.commit().then(() => {
-          rawSetRequests(mappedRequests);
-          localStorage.setItem('offsite_requests', JSON.stringify(mappedRequests));
-        }).catch(console.error);
-      } else {
-        const reqs: OffSiteRequest[] = [];
-        snapshot.forEach(doc => {
-          reqs.push(doc.data() as OffSiteRequest);
-        });
-        // Sort requests by date or id to keep order consistent
-        reqs.sort((a, b) => b.id.localeCompare(a.id));
-        rawSetRequests(reqs);
-        localStorage.setItem('offsite_requests', JSON.stringify(reqs));
+        batch.commit().catch(console.error);
       }
+
+      reqs.sort((a, b) => b.id.localeCompare(a.id));
+      rawSetRequests(reqs);
+      localStorage.setItem('offsite_requests', JSON.stringify(reqs));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'requests');
     });
 
     const unsubPlans = onSnapshot(collection(db, 'plans'), (snapshot) => {
-      if (snapshot.empty) {
-        console.log("Seeding plans to Firestore...");
+      const plns: OffSitePlan[] = [];
+      const existingIds = new Set<string>();
+      
+      snapshot.forEach(doc => {
+        const data = doc.data() as OffSitePlan;
+        plns.push(data);
+        existingIds.add(data.id);
+      });
+
+      const defaultPlans: OffSitePlan[] = [
+        {
+          id: 'PLAN-2026-001',
+          employeeId: 'KK0098',
+          employeeName: 'ออนนิตา โต๊ะสะอิ',
+          title: 'แผนปฏิบัติงานประจำเดือน มิถุนายน 2026',
+          type: 'monthly' as const,
+          startDate: '2026-06-01',
+          endDate: '2026-06-30',
+          status: 'approved' as const,
+          approvedBy: 'กานดา ยอดรัก (ผู้จัดการฝ่ายสำนักงาน)',
+          approvedAt: '28/05/2026 10:30',
+          createdAt: '2026-05-27',
+          plannedDates: [
+            {
+              date: '2026-06-01',
+              location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
+              purpose: 'ควบคุมงานแข่งขันแข่งขันการ์ดแวนการ์ด (Vanguard Cardfight Thai Tournament)',
+              startTime: '09:00',
+              endTime: '18:00'
+            },
+            {
+              date: '2026-06-08',
+              location: { name: 'แฟชั่น ไอส์แลนด์ (ลานอีเว้นต์ชั้น 3)', lat: 13.8248, lng: 100.6775, address: 'คันนายาว เขตคันนายาว กรุงเทพฯ' },
+              purpose: 'คุมการแข่งขันทัวร์นาเมนต์ Vanguard Weekly Arena ประจำสัปดาห์ปริมณฑล',
+              startTime: '10:00',
+              endTime: '19:00'
+            },
+            {
+              date: '2026-06-13',
+              location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
+              purpose: 'ควบคุมตัดสินคัดเลือกการ์ดไฟท์ แบล็คเคลย์ ทัวร์นาเมนท์เพื่อสิทธิ์เข้าชิงระดับประเทศ',
+              startTime: '09:00',
+              endTime: '18:00'
+            },
+            {
+              date: '2026-06-20',
+              location: { name: 'เดอะมอลล์ บางกะปิ (Zone Toy)', lat: 13.7663, lng: 100.6433, address: 'คลองจั่น เขตบางกะปิ กรุงเทพฯ' },
+              purpose: 'จัดกิจกรรมฝึกเล่นการ์ดเกมและแจกการ์ดฟรีสำหรับเด็กนักเรียน',
+              startTime: '10:00',
+              endTime: '18:00'
+            }
+          ]
+        }
+      ];
+
+      const missingMocks = defaultPlans.filter(mock => !existingIds.has(mock.id));
+
+      if (missingMocks.length > 0) {
+        console.log(`Incremental Seeding: Writing ${missingMocks.length} missing plans to Firestore...`);
         const batch = writeBatch(db);
-        const defaultPlans: OffSitePlan[] = [
-          {
-            id: 'PLAN-2026-001',
-            employeeId: 'KK0098',
-            employeeName: 'ออนนิตา โต๊ะสะอิ',
-            title: 'แผนปฏิบัติงานประจำเดือน มิถุนายน 2026',
-            type: 'monthly' as const,
-            startDate: '2026-06-01',
-            endDate: '2026-06-30',
-            status: 'approved' as const,
-            approvedBy: 'กานดา ยอดรัก (ผู้จัดการฝ่ายสำนักงาน)',
-            approvedAt: '28/05/2026 10:30',
-            createdAt: '2026-05-27',
-            plannedDates: [
-              {
-                date: '2026-06-01',
-                location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
-                purpose: 'ควบคุมงานแข่งขันแข่งขันการ์ดแวนการ์ด (Vanguard Cardfight Thai Tournament)',
-                startTime: '09:00',
-                endTime: '18:00'
-              },
-              {
-                date: '2026-06-08',
-                location: { name: 'แฟชั่น ไอส์แลนด์ (ลานอีเว้นต์ชั้น 3)', lat: 13.8248, lng: 100.6775, address: 'คันนายาว เขตคันนายาว กรุงเทพฯ' },
-                purpose: 'คุมการแข่งขันทัวร์นาเมนต์ Vanguard Weekly Arena ประจำสัปดาห์ปริมณฑล',
-                startTime: '10:00',
-                endTime: '19:00'
-              },
-              {
-                date: '2026-06-13',
-                location: { name: 'เมก้า พลาซ่า สะพานเหล็ก', lat: 13.7462, lng: 100.5028, address: 'วังบูรพาภิรมย์ เขตพระนคร กรุงเทพฯ' },
-                purpose: 'ควบคุมตัดสินคัดเลือกการ์ดไฟท์ แบล็คเคลย์ ทัวร์นาเมนท์เพื่อสิทธิ์เข้าชิงระดับประเทศ',
-                startTime: '09:00',
-                endTime: '18:00'
-              },
-              {
-                date: '2026-06-20',
-                location: { name: 'เดอะมอลล์ บางกะปิ (Zone Toy)', lat: 13.7663, lng: 100.6433, address: 'คลองจั่น เขตบางกะปิ กรุงเทพฯ' },
-                purpose: 'จัดกิจกรรมฝึกเล่นการ์ดเกมและแจกการ์ดฟรีสำหรับเด็กนักเรียน',
-                startTime: '10:00',
-                endTime: '18:00'
-              }
-            ]
-          }
-        ];
-        defaultPlans.forEach((plan) => {
+        missingMocks.forEach(plan => {
           const docRef = doc(db, 'plans', plan.id);
           batch.set(docRef, plan);
+          plns.push(plan);
         });
-        batch.commit().then(() => {
-          rawSetPlans(defaultPlans);
-          localStorage.setItem('offsite_plans', JSON.stringify(defaultPlans));
-        }).catch(console.error);
-      } else {
-        const plns: OffSitePlan[] = [];
-        snapshot.forEach(doc => {
-          plns.push(doc.data() as OffSitePlan);
-        });
-        rawSetPlans(plns);
-        localStorage.setItem('offsite_plans', JSON.stringify(plns));
+        batch.commit().catch(console.error);
       }
+
+      rawSetPlans(plns);
+      localStorage.setItem('offsite_plans', JSON.stringify(plns));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'plans');
     });
