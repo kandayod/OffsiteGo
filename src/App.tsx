@@ -166,9 +166,16 @@ export default function App() {
       const existingIds = new Set<string>();
       
       snapshot.forEach(doc => {
-        const data = doc.data() as Employee;
-        emps.push(data);
-        existingIds.add(data.id.trim().toUpperCase());
+        const docData = doc.data() || {};
+        const empId = (docData.id || doc.id || '').trim().toUpperCase();
+        if (empId) {
+          const data: Employee = {
+            ...docData,
+            id: empId
+          } as Employee;
+          emps.push(data);
+          existingIds.add(empId);
+        }
       });
 
       // Incremental seeding: Check if any mock employee is missing in Firestore
@@ -205,9 +212,16 @@ export default function App() {
       const existingIds = new Set<string>();
       
       snapshot.forEach(doc => {
-        const data = doc.data() as OffSiteRequest;
-        reqs.push(data);
-        existingIds.add(data.id);
+        const docData = doc.data() || {};
+        const reqId = docData.id || doc.id || '';
+        if (reqId) {
+          const data: OffSiteRequest = {
+            ...docData,
+            id: reqId
+          } as OffSiteRequest;
+          reqs.push(data);
+          existingIds.add(reqId);
+        }
       });
 
       // Incremental seeding: Check if any mock requests are missing in Firestore
@@ -255,7 +269,7 @@ export default function App() {
         batch.commit().catch(console.error);
       }
 
-      reqs.sort((a, b) => b.id.localeCompare(a.id));
+      reqs.sort((a, b) => (b?.id || '').localeCompare(a?.id || ''));
       rawSetRequests(reqs);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'requests');
@@ -266,9 +280,16 @@ export default function App() {
       const existingIds = new Set<string>();
       
       snapshot.forEach(doc => {
-        const data = doc.data() as OffSitePlan;
-        plns.push(data);
-        existingIds.add(data.id);
+        const docData = doc.data() || {};
+        const planId = docData.id || doc.id || '';
+        if (planId) {
+          const data: OffSitePlan = {
+            ...docData,
+            id: planId
+          } as OffSitePlan;
+          plns.push(data);
+          existingIds.add(planId);
+        }
       });
 
       const defaultPlans: OffSitePlan[] = [
@@ -970,7 +991,15 @@ export default function App() {
   };
 
   // Filter lists based on role select
-  const currentSimEmployee = employees.find(e => e.id === simulatedEmployeeId) || employees[0];
+  const currentSimEmployee = employees.find(e => e.id === simulatedEmployeeId) || employees[0] || {
+    id: 'LOADING',
+    name: 'กำลังโหลดข้อมูล...',
+    role: 'พนักงานปฏิบัติการ',
+    position: 'employee',
+    workGroup: 'adhoc',
+    approverId: 'KK0031',
+    approverName: 'กานดา ยอดรัก'
+  };
 
   // Active list of my requests (employee context)
   const myRequests = requests.filter(req => req.employeeId === simulatedEmployeeId);

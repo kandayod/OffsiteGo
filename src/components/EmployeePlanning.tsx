@@ -46,7 +46,7 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
   ]);
 
   // My submitted plans list
-  const myPlans = plans.filter(p => p.employeeId === currentSimEmployee.id);
+  const myPlans = plans.filter(p => p.employeeId === currentSimEmployee?.id);
 
   // Add draft planned line item
   const addDraftLine = () => {
@@ -121,8 +121,8 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
 
     const newPlan: OffSitePlan = {
       id: `PLAN-${Date.now().toString().slice(-6)}`,
-      employeeId: currentSimEmployee.id,
-      employeeName: currentSimEmployee.name,
+      employeeId: currentSimEmployee?.id || 'UNKNOWN',
+      employeeName: currentSimEmployee?.name || 'Unknown Employee',
       title: planTitle,
       type: planType,
       startDate: planStartDate,
