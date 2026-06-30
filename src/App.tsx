@@ -1171,21 +1171,21 @@ export default function App() {
       distance = Math.floor(Math.random() * 32) + 5; // offset 5-37 meters (within range)
     }
 
-    setRequests(prev => prev.map(req => {
-      if (req.id === id) {
-        return {
-          ...req,
-          checkIn: {
-            time: getThailandTimeStr(),
-            lat: checkInLat,
-            lng: checkInLng,
-            distanceMeters: distance,
-            deviceInfo: navigator.userAgent
-          }
-        };
+    const req = requests.find(r => r.id === id);
+    if (!req) return;
+
+    const updatedReq: OffSiteRequest = {
+      ...req,
+      checkIn: {
+        time: getThailandTimeStr(),
+        lat: checkInLat,
+        lng: checkInLng,
+        distanceMeters: distance,
+        deviceInfo: navigator.userAgent
       }
-      return req;
-    }));
+    };
+
+    saveRequest(updatedReq).catch(console.error);
   };
 
   // Submit Check-Out Form Details
@@ -1204,24 +1204,21 @@ export default function App() {
       checkOutLng = browserGeo.lng;
     }
 
-    setRequests(prev => prev.map(item => {
-      if (item.id === checkoutRequestId) {
-        return {
-          ...item,
-          checkOut: {
-            time: getThailandTimeStr(),
-            lat: checkOutLat,
-            lng: checkOutLng,
-            workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
-            issueFound: checkoutIssueFound || 'ไม่มีปัญหา',
-            issueResolved: checkoutIssueResolved,
-            workImage: checkoutWorkImage || undefined,
-            deviceInfo: navigator.userAgent
-          }
-        };
+    const updatedReq: OffSiteRequest = {
+      ...req,
+      checkOut: {
+        time: getThailandTimeStr(),
+        lat: checkOutLat,
+        lng: checkOutLng,
+        workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
+        issueFound: checkoutIssueFound || 'ไม่มีปัญหา',
+        issueResolved: checkoutIssueResolved,
+        workImage: checkoutWorkImage || undefined,
+        deviceInfo: navigator.userAgent
       }
-      return item;
-    }));
+    };
+
+    saveRequest(updatedReq).catch(console.error);
 
     setCheckoutRequestId(null);
     setCheckoutWorkSummary('');
@@ -1232,34 +1229,32 @@ export default function App() {
 
   // Resolve problems toggle (Manager function / Employee completed marker)
   const resolveIssueOnUI = (requestId: string) => {
-    setRequests(prev => prev.map(req => {
-      if (req.id === requestId && req.checkOut) {
-        return {
-          ...req,
-          checkOut: {
-            ...req.checkOut,
-            issueResolved: true
-          }
-        };
-      }
-      return req;
-    }));
+    const req = requests.find(r => r.id === requestId);
+    if (req && req.checkOut) {
+      const updatedReq: OffSiteRequest = {
+        ...req,
+        checkOut: {
+          ...req.checkOut,
+          issueResolved: true
+        }
+      };
+      saveRequest(updatedReq).catch(console.error);
+    }
   };
 
   // Unresolve problems toggle (for debugging and playground status)
   const unresolveIssueOnUI = (requestId: string) => {
-    setRequests(prev => prev.map(req => {
-      if (req.id === requestId && req.checkOut) {
-        return {
-          ...req,
-          checkOut: {
-            ...req.checkOut,
-            issueResolved: false
-          }
-        };
-      }
-      return req;
-    }));
+    const req = requests.find(r => r.id === requestId);
+    if (req && req.checkOut) {
+      const updatedReq: OffSiteRequest = {
+        ...req,
+        checkOut: {
+          ...req.checkOut,
+          issueResolved: false
+        }
+      };
+      saveRequest(updatedReq).catch(console.error);
+    }
   };
 
   // --- USER ACCESS SCOPE FILTERS FOR CALENDAR & DASHBOARD (based on Approval Line) ---
