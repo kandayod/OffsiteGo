@@ -61,29 +61,9 @@ import {
 
 export default function App() {
   // --- REAL-TIME FIRESTORE DATA SYSTEM ---
-  const [requests, rawSetRequests] = useState<OffSiteRequest[]>(() => {
-    const saved = localStorage.getItem('offsite_requests');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return [];
-  });
-
-  const [employees, rawSetEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('offsite_employees');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return [];
-  });
-
-  const [plans, rawSetPlans] = useState<OffSitePlan[]>(() => {
-    const saved = localStorage.getItem('offsite_plans');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return [];
-  });
+  const [requests, rawSetRequests] = useState<OffSiteRequest[]>([]);
+  const [employees, rawSetEmployees] = useState<Employee[]>([]);
+  const [plans, rawSetPlans] = useState<OffSitePlan[]>([]);
 
   // Keep refs synchronized to always have access to the absolute up-to-date state
   const requestsRef = useRef<OffSiteRequest[]>(requests);
@@ -215,7 +195,6 @@ export default function App() {
       }
 
       rawSetEmployees(emps);
-      localStorage.setItem('offsite_employees', JSON.stringify(emps));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'employees');
     });
@@ -277,7 +256,6 @@ export default function App() {
 
       reqs.sort((a, b) => b.id.localeCompare(a.id));
       rawSetRequests(reqs);
-      localStorage.setItem('offsite_requests', JSON.stringify(reqs));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'requests');
     });
@@ -352,7 +330,6 @@ export default function App() {
       }
 
       rawSetPlans(plns);
-      localStorage.setItem('offsite_plans', JSON.stringify(plns));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'plans');
     });
