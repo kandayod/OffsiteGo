@@ -548,6 +548,10 @@ export default function App() {
   const [checkoutIssueResolved, setCheckoutIssueResolved] = useState<boolean>(true);
   const [checkoutWorkImage, setCheckoutWorkImage] = useState<string>('');
 
+  // Automatic real-time check-in states
+  const [autoCheckInRequest, setAutoCheckInRequest] = useState<OffSiteRequest | null>(null);
+  const [dismissedCheckInIds, setDismissedCheckInIds] = useState<string[]>([]);
+
   // Filter state for dashboard
   const [dashboardEmployeeFilter, setDashboardEmployeeFilter] = useState<string>('');
   const [dashboardIssueStateFilter, setDashboardIssueStateFilter] = useState<string>('all');
@@ -1001,6 +1005,31 @@ export default function App() {
     approverName: 'กานดา ยอดรัก'
   };
 
+  // Listen for today's approved requests that have not been checked in yet, and open check-in popup automatically.
+  useEffect(() => {
+    if (activeRole !== 'employee') {
+      setAutoCheckInRequest(null);
+      return;
+    }
+    const todayStr = getThailandTodayStr();
+    const targetEmpId = currentSimEmployee?.id || simulatedEmployeeId;
+
+    // find today's request that is approved but not checked-in and not dismissed
+    const todayApprovedUncheckedIn = requests.find(r => 
+      r.employeeId === targetEmpId && 
+      r.date === todayStr && 
+      r.status === 'approved' && 
+      !r.checkIn &&
+      !dismissedCheckInIds.includes(r.id)
+    );
+
+    if (todayApprovedUncheckedIn) {
+      setAutoCheckInRequest(todayApprovedUncheckedIn);
+    } else {
+      setAutoCheckInRequest(null);
+    }
+  }, [requests, currentSimEmployee, simulatedEmployeeId, dismissedCheckInIds, activeRole]);
+
   // Active list of my requests (employee context)
   const myRequests = requests.filter(req => req.employeeId === simulatedEmployeeId);
 
@@ -1054,9 +1083,11 @@ export default function App() {
       location: finalLocation,
       purpose: formPurpose,
       status: autoApprove ? 'approved' : 'pending',
-      approvedBy: autoApprove ? 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ' : undefined,
-      approvedAt: autoApprove ? getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5) : undefined,
-      createdAt: getThailandTodayStr()
+      createdAt: getThailandTodayStr(),
+      ...(autoApprove ? {
+        approvedBy: 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ',
+        approvedAt: getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5)
+      } : {})
     };
 
     setRequests(prev => [newRequest, ...prev]);
@@ -1213,8 +1244,8 @@ export default function App() {
         workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
         issueFound: checkoutIssueFound || 'ไม่มีปัญหา',
         issueResolved: checkoutIssueResolved,
-        workImage: checkoutWorkImage || undefined,
-        deviceInfo: navigator.userAgent
+        deviceInfo: navigator.userAgent,
+        ...(checkoutWorkImage ? { workImage: checkoutWorkImage } : {})
       }
     };
 
@@ -3793,223 +3824,6 @@ export default function App() {
             {/* Right Hand: My Requests status list & check-in buttons */}
             <div className="lg:col-span-2 space-y-6">
               
-              {/* Check-Out Dialog (When employee is checking out) */}
-              {checkoutRequestId && (
-                <div className="bg-[#433E3B] text-white rounded-3xl border border-earth-border p-6 shadow-lg space-y-4">
-                  <div className="flex justify-between items-start border-b border-earth-border/20 pb-3">
-                    <div>
-                      <h4 className="font-bold text-lg text-[#E6D5B8] flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 animate-pulse text-earth-secondary" />
-                        <span>เพิ่มรายละเอียดการทำงานและปัญหาที่พบหน้างาน (Submit Log Out Report)</span>
-                      </h4>
-                      <p className="text-xs text-white/80">กรุณากรอกรายงานความคืบหน้า และระบุปัญหาที่ได้รับการแก้ไขหลังเสร็จสิ้นภารกิจ</p>
-                    </div>
-                    <button 
-                      onClick={() => setCheckoutRequestId(null)}
-                      className="text-white/60 hover:text-white"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleCheckOutSubmit} className="space-y-4 text-xs font-serif text-white/90">
-                    <div>
-                      <label className="block text-xs font-bold text-[#E6D5B8] mb-1">รายงานสรุปผลการทำงาน (Work Summary):</label>
-                      <textarea
-                        value={checkoutWorkSummary}
-                        onChange={(e) => setCheckoutWorkSummary(e.target.value)}
-                        placeholder="เช่น ดำเนินงานคุมทัวร์นาเมนต์รอบ 64 คน และแจกจ่ายสินค้าของพรีเมี่ยมเสร็จเรียบร้อย คนเข้าร่วมอบอุ่น..."
-                        className="w-full bg-black/25 border border-earth-border/20 text-white rounded-xl px-3 py-2 text-xs min-h-[80px] outline-none focus:ring-1 focus:ring-[#8BA888]"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold text-[#E6D5B8]">ระบุปัญหาและรายงานอุปสรรคที่พบเจอ (ถ้ามี):</label>
-                      <input
-                        type="text"
-                        value={checkoutIssueFound}
-                        onChange={(e) => setCheckoutIssueFound(e.target.value)}
-                        placeholder="เช่น แอร์ในห้างเสียชั่วช่วงบ่าย, ไม่มีโต๊ะเก้าอี้เพียงพอ (ใส่ 'ไม่มีปัญหา' หากเรียบร้อยดี)"
-                        className="w-full bg-black/25 border border-earth-border/20 text-white rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-[#8BA888]"
-                      />
-
-                      {/* Problem solved status switcher */}
-                      <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-earth-border/10 mt-2">
-                        <div>
-                          <p className="text-white text-xs font-bold">ปัญหานี้ได้รับการแก้ไขแล้วเสร็จในจุดปฏิบัติงานหรือไม่?</p>
-                          <p className="text-white/60 text-[10px] italic">หากดำเนินการแก้ไขเสร็จสิ้นแล้ว ให้เลือกรับรองสถานะไว้</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setCheckoutIssueResolved(true)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
-                              checkoutIssueResolved 
-                                ? 'bg-[#8BA888] text-white' 
-                                : 'bg-white/10 text-white/50 hover:bg-white/15'
-                            }`}
-                          >
-                            แก้ไขแล้ว
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCheckoutIssueResolved(false)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
-                              !checkoutIssueResolved 
-                                ? 'bg-[#D27D59] text-white' 
-                                : 'bg-white/10 text-white/50 hover:bg-white/15'
-                            }`}
-                          >
-                            ยังไม่ได้รับการแก้ไข
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* WORKPLACE / TASK IMAGE VERIFICATION WORKFLOW */}
-                    <div className="space-y-2.5 bg-black/10 p-4 rounded-2xl border border-white/5 text-[#E6D5B8]">
-                      <div className="flex justify-between items-center">
-                        <label className="block text-xs font-bold flex items-center gap-1.5">
-                          <ImageIcon className="w-4 h-4 text-[#8BA888]" />
-                          <span>แนบภาพถ่ายสถานที่ทำงานหรือภาพผลงานสำเร็จ <span className="text-[#D27D59] font-black">* จำเป็น</span></span>
-                        </label>
-                        {checkoutWorkImage && (
-                          <button
-                            type="button"
-                            onClick={() => setCheckoutWorkImage('')}
-                            className="text-[11px] text-rose-300 hover:text-rose-200 hover:underline flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>ลบรูปภาพ</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Drag & Drop Upload Container */}
-                      {!checkoutWorkImage ? (
-                        <div
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                              const file = e.dataTransfer.files[0];
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                if (ev.target?.result) setCheckoutWorkImage(ev.target.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="border-2 border-dashed border-white/20 hover:border-earth-primary/40 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition flex flex-col items-center gap-2 group relative"
-                        >
-                          <input
-                            type="file"
-                            accept="image/*"
-                            id="checkout-photo-input"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                const file = e.target.files[0];
-                                const reader = new FileReader();
-                                reader.onload = (ev) => {
-                                  if (ev.target?.result) setCheckoutWorkImage(ev.target.result as string);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                          <Upload className="w-8 h-8 text-[#E6D5B8]/85 group-hover:scale-110 transition duration-200 pointer-events-none" />
-                          <p className="text-xs text-white/95 font-bold pointer-events-none">ลากและวางรูปภาพที่นี่ หรือคลิกเพื่อเลือกไฟล์</p>
-                          <p className="text-[10px] text-white/55 pointer-events-none">(รองรับไฟล์รูปภาพ PNG, JPG, JPEG)</p>
-                        </div>
-                      ) : (
-                        <div className="relative rounded-xl overflow-hidden border border-white/10 group bg-black/40 flex items-center justify-center p-2">
-                          <img 
-                            src={checkoutWorkImage} 
-                            alt="Work Evidence Progress" 
-                            className="max-h-[160px] object-contain rounded-lg"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      )}
-
-                      {/* QUICK PRESET MOCK PICTURES SELECTOR FOR EASY PLAYGROUND SIMULATION */}
-                      <div className="space-y-1.5 border-t border-white/5 pt-3 text-white/80">
-                        <p className="text-[10px] text-white/60 font-semibold uppercase tracking-wider">
-                          หรือกดเลือกรูปภาพจากการปฏิบัติงานด่วนเพื่อความสะดวกในการทดสอบระบบ:
-                        </p>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[
-                            {
-                              label: 'บูธจัดแข่งการ์ด',
-                              url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=300&q=80'
-                            },
-                            {
-                              label: 'ตรวจนับสต็อก',
-                              url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=300&q=80'
-                            },
-                            {
-                              label: 'หน้าร้านหลัก',
-                              url: 'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?auto=format&fit=crop&w=300&q=80'
-                            },
-                            {
-                              label: 'การสอนนัดพิเศษ',
-                              url: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=300&q=80'
-                            }
-                          ].map((preset, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setCheckoutWorkImage(preset.url)}
-                              className={`p-1 rounded-lg border transition text-left space-y-1 cursor-pointer overflow-hidden group ${
-                                checkoutWorkImage === preset.url 
-                                  ? 'bg-[#CBDBC8] border-earth-primary text-earth-dark font-bold' 
-                                  : 'bg-black/20 border-white/10 hover:bg-black/40 hover:border-white/20 text-white/70'
-                              }`}
-                            >
-                              <img 
-                                src={preset.url} 
-                                alt={preset.label} 
-                                className="w-full h-8 object-cover rounded-md group-hover:scale-105 transition"
-                                referrerPolicy="no-referrer"
-                              />
-                              <span className="block text-[8px] truncate text-center">
-                                {preset.label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-white/60 text-[10.5px] text-center bg-white/5 p-2 rounded-xl border border-white/5">
-                      💡 (ไม่บังคับ) ท่านสามารถเลือกแนบรูปถ่ายการทำงาน หรือเลือกรูปภาพจำลองผลงานเพื่อความสมบูรณ์ของรายงานได้
-                    </p>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setCheckoutRequestId(null)}
-                        className="px-4 py-2 bg-transparent text-white/80 hover:text-white rounded-xl border border-white/20 font-bold transition cursor-pointer text-xs"
-                      >
-                        ปิดหน้าต่าง
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2 font-sans rounded-xl font-bold shadow-xs transition text-xs bg-[#8BA888] hover:bg-[#799976] text-white cursor-pointer active:scale-95"
-                      >
-                        ส่งรายการบันทึกเช็คเอาท์
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
               {/* Active list of requests representing my workflow */}
               <div id="employee-workflow-history-card" className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-earth-border pb-3 flex-wrap gap-2">
@@ -4362,6 +4176,85 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AUTOMATIC REAL-TIME CHECK-IN POPUP OVERLAY */}
+      {autoCheckInRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white text-earth-dark rounded-3xl border-2 border-earth-primary/50 max-w-lg w-full p-6 md:p-8 shadow-2xl relative space-y-6 text-left animate-fadeIn">
+            <button 
+              onClick={() => {
+                setDismissedCheckInIds(prev => [...prev, autoCheckInRequest.id]);
+                setAutoCheckInRequest(null);
+              }}
+              className="absolute top-4 right-4 text-earth-text/60 hover:text-earth-dark p-1.5 rounded-xl bg-earth-sidebar hover:bg-earth-border/45 transition cursor-pointer font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-2 border-b border-earth-border pb-3 text-left">
+              <span className="inline-flex items-center gap-1.5 bg-[#E2EBE0] text-[#2E5E2A] text-[10px] font-mono font-black px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
+                🔔 แจ้งเตือนเช็คอินปฏิบัติงานด่วน
+              </span>
+              <h3 className="font-extrabold text-lg text-earth-dark flex items-center gap-2 font-sans mt-1.5">
+                <MapPin className="w-5 h-5 text-earth-primary" />
+                <span>คำขอวันนี้ได้รับการอนุมัติแล้ว!</span>
+              </h3>
+              <p className="text-xs text-earth-text/90 font-sans">
+                คุณมีรายการนอกสถานที่ที่ได้รับอนุญาตให้เข้าปฏิบัติหน้าที่ในวันนี้ กรุณาเช็คอินเพื่อบันทึกพิกัดและรายงานตัวเข้าทำงานทันที
+              </p>
+            </div>
+
+            <div className="space-y-3.5 bg-[#FCFAF7] border border-earth-border/60 p-4 rounded-2xl text-xs font-sans">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-earth-text tracking-wider">จุดปฏิบัติงานเป้าหมาย:</p>
+                <p className="font-extrabold text-earth-dark text-sm">📍 {autoCheckInRequest.location.name}</p>
+                <p className="text-earth-text text-xs pl-4">{autoCheckInRequest.location.address}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-earth-border/40 pt-3">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-earth-text tracking-wider">ช่วงเวลางาน:</p>
+                  <p className="font-bold text-earth-dark font-mono text-xs">⏱️ {autoCheckInRequest.startTime} - {autoCheckInRequest.endTime} น.</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-earth-text tracking-wider">รหัสอ้างอิงใบงาน:</p>
+                  <p className="font-mono font-bold text-earth-dark text-xs">{autoCheckInRequest.id}</p>
+                </div>
+              </div>
+
+              <div className="border-t border-earth-border/40 pt-3 space-y-1">
+                <p className="text-[10px] uppercase font-bold text-earth-text tracking-wider">วัตถุประสงค์:</p>
+                <p className="font-medium text-earth-dark italic font-serif">"{autoCheckInRequest.purpose}"</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerCheckIn(autoCheckInRequest.id, autoCheckInRequest.location.lat, autoCheckInRequest.location.lng);
+                  setAutoCheckInRequest(null);
+                }}
+                className="w-full py-3 bg-earth-primary hover:bg-[#799976] text-white rounded-xl text-sm font-extrabold shadow-md hover:scale-[1.01] active:scale-95 duration-150 transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Check className="w-5 h-5" />
+                <span>📍 เช็คอินเข้าทำงาน (Check-In) ด้วย GPS ทันที</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedCheckInIds(prev => [...prev, autoCheckInRequest.id]);
+                  setAutoCheckInRequest(null);
+                }}
+                className="w-full py-2.5 bg-transparent hover:bg-earth-sidebar text-earth-text rounded-xl text-xs font-bold transition cursor-pointer text-center"
+              >
+                ไว้เช็คอินภายหลัง (ปิดหน้าต่างนี้ชั่วคราว)
+              </button>
+            </div>
           </div>
         </div>
       )}
