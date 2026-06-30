@@ -1034,7 +1034,7 @@ export default function App() {
     // otherwise the request goes to 'pending' status for manager approval.
     let autoApprove = false;
     let matchingPlan: OffSitePlan | undefined = plans.find(plan => 
-      plan.employeeId === currentSimEmployee.id &&
+      plan.employeeId === currentSimEmployee?.id &&
       plan.status === 'approved' &&
       plan.plannedDates.some(pd => pd.date === formDate)
     );
@@ -1045,9 +1045,9 @@ export default function App() {
 
     const newRequest: OffSiteRequest = {
       id: `REQ-${Date.now().toString().slice(-6)}`,
-      employeeId: currentSimEmployee.id,
-      employeeName: currentSimEmployee.name,
-      role: currentSimEmployee.role,
+      employeeId: currentSimEmployee?.id || 'UNKNOWN',
+      employeeName: currentSimEmployee?.name || 'Unknown Employee',
+      role: currentSimEmployee?.role || 'พนักงานปฏิบัติการ',
       date: formDate,
       startTime: formStartTime,
       endTime: formEndTime,
@@ -3500,7 +3500,7 @@ export default function App() {
                         <div className="rounded-2xl border border-earth-border p-1 bg-slate-50/50">
                           <OfflineSimMap 
                             requests={requests} 
-                            selectedEmployeeId={currentSimEmployee.id} 
+                            selectedEmployeeId={currentSimEmployee?.id} 
                           />
                         </div>
                         <p className="text-[10.5px] text-earth-text/70 italic text-center">แผนที่แสดงตำแหน่งและประวัติเช็คอินที่เกิดขึ้นจริงตามภูมิศาสตร์เป้าหมาย</p>
@@ -3521,7 +3521,7 @@ export default function App() {
                         <ReportTemplate
                           selectedMonth={selectedMonth}
                           requests={requests}
-                          selectedEmployeeId={currentSimEmployee.id}
+                          selectedEmployeeId={currentSimEmployee?.id}
                           employees={employees}
                         />
                       </div>
@@ -3536,7 +3536,7 @@ export default function App() {
                 {/* 📌 วันนี้: เช็คอิน/เช็คเอาท์ด่วน */}
                 {(() => {
                   const todayStr = getThailandTodayStr();
-                  const todayReqs = requests.filter(r => r.employeeId === currentSimEmployee.id && r.date === todayStr && r.status === 'approved');
+                  const todayReqs = requests.filter(r => r.employeeId === currentSimEmployee?.id && r.date === todayStr && r.status === 'approved');
                   
                   return (
                     <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
@@ -3657,7 +3657,7 @@ export default function App() {
                   <div>
                     <label className="block text-xs font-bold text-earth-text mb-1">พนักงานผู้ส่งคำขอ</label>
                     <div className="bg-[#FAF8F5] px-3 py-2 rounded-xl text-earth-dark font-bold border border-earth-border">
-                      {currentSimEmployee.name} ({currentSimEmployee.id})
+                      {currentSimEmployee?.name} ({currentSimEmployee?.id})
                     </div>
                   </div>
 
@@ -3789,7 +3789,7 @@ export default function App() {
                     className="w-full bg-earth-primary hover:bg-[#799976] text-white font-sans text-xs font-bold py-3 rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-95 duration-150"
                   >
                     <Send className="w-4 h-4" />
-                    <span>ส่งขออนุมัติต่อ: {currentSimEmployee.approverName || 'ผู้จัดการ'}</span>
+                    <span>ส่งขออนุมัติต่อ: {currentSimEmployee?.approverName || 'ผู้จัดการ'}</span>
                   </button>
                 </form>
               </div>
