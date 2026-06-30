@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, FormEvent } from 'react';
 import { db, saveEmployee, saveRequest, savePlan, deleteEmployeeFromFirestore, deleteRequestFromFirestore, deletePlanFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
+import { getThailandTodayStr, getThailandTimeStr } from './lib/dateUtils';
 import { collection, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { 
   MOCK_EMPLOYEES, 
@@ -1025,8 +1026,8 @@ export default function App() {
       purpose: formPurpose,
       status: autoApprove ? 'approved' : 'pending',
       approvedBy: autoApprove ? 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ' : undefined,
-      approvedAt: autoApprove ? new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5) : undefined,
-      createdAt: new Date().toISOString().split('T')[0]
+      approvedAt: autoApprove ? getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5) : undefined,
+      createdAt: getThailandTodayStr()
     };
 
     setRequests(prev => [newRequest, ...prev]);
@@ -1056,7 +1057,7 @@ export default function App() {
           ...req,
           status: approve ? 'approved' : 'rejected',
           approvedBy: approvedByText,
-          approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
+          approvedAt: getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5)
         };
       }
       return req;
@@ -1083,16 +1084,16 @@ export default function App() {
     const planToGen = plans.find(p => p.id === planId);
     
     setPlans(prev => prev.map(p => {
-      if (p.id === planId) {
-        return {
-          ...p,
-          status: 'approved',
-          approvedBy: approvedByString,
-          approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5)
-        };
-      }
-      return p;
-    }));
+       if (p.id === planId) {
+         return {
+           ...p,
+           status: 'approved',
+           approvedBy: approvedByString,
+           approvedAt: getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5)
+         };
+       }
+       return p;
+     }));
 
     if (planToGen) {
       const emp = employees.find(e => e.id === planToGen.employeeId);
@@ -1113,8 +1114,8 @@ export default function App() {
           purpose: pd.purpose,
           status: 'approved',
           approvedBy: approvedByString,
-          approvedAt: new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH').slice(0, 5),
-          createdAt: new Date().toISOString().split('T')[0]
+          approvedAt: getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5),
+          createdAt: getThailandTodayStr()
         };
       }).filter(Boolean) as OffSiteRequest[];
       
@@ -1146,7 +1147,7 @@ export default function App() {
         return {
           ...req,
           checkIn: {
-            time: new Date().toLocaleTimeString('th-TH', { hour12: false }),
+            time: getThailandTimeStr(),
             lat: checkInLat,
             lng: checkInLng,
             distanceMeters: distance,
@@ -1179,7 +1180,7 @@ export default function App() {
         return {
           ...item,
           checkOut: {
-            time: new Date().toLocaleTimeString('th-TH', { hour12: false }),
+            time: getThailandTimeStr(),
             lat: checkOutLat,
             lng: checkOutLng,
             workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
@@ -2052,7 +2053,7 @@ export default function App() {
                                       status: 'rejected',
                                       rejectedReason: reason,
                                       approvedBy: loggedInUser ? `${loggedInUser.name} (${loggedInUser.role})` : 'ผู้อนุมัติ',
-                                      approvedAt: new Date().toLocaleDateString('th-TH')
+                                      approvedAt: getThailandTodayStr().split('-').reverse().join('/')
                                     };
                                   }
                                   return p;
@@ -2464,7 +2465,7 @@ export default function App() {
                                       status: 'rejected',
                                       rejectedReason: reason,
                                       approvedBy: `${loggedInUser?.name || 'ผู้ดูแลระบบ'} (ฝ่ายคุมระบบ)`,
-                                      approvedAt: new Date().toLocaleDateString('th-TH')
+                                      approvedAt: getThailandTodayStr().split('-').reverse().join('/')
                                     };
                                   }
                                   return p;
@@ -3505,7 +3506,7 @@ export default function App() {
               <div className="space-y-6 animate-fadeIn">
                 {/* 📌 วันนี้: เช็คอิน/เช็คเอาท์ด่วน */}
                 {(() => {
-                  const todayStr = new Date().toISOString().split('T')[0];
+                  const todayStr = getThailandTodayStr();
                   const todayReqs = requests.filter(r => r.employeeId === currentSimEmployee.id && r.date === todayStr && r.status === 'approved');
                   
                   return (

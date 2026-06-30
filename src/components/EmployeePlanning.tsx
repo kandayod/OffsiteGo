@@ -1,6 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { Employee, OffSitePlan, LocationCoordinates, OffSitePlanDate } from '../types';
 import { CalendarRange, ClipboardList, Plus, Trash2, CheckCircle2, Clock3, MapPin, Send, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { getThailandTodayStr } from '../lib/dateUtils';
 
 interface EmployeePlanningProps {
   currentSimEmployee: Employee;
@@ -11,9 +12,9 @@ interface EmployeePlanningProps {
 
 export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, popularLocations }: EmployeePlanningProps) {
   // Plan drafting state dynamically initialized with today's date
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const nextWeek = new Date();
+  const todayStr = getThailandTodayStr();
+  const today = new Date(todayStr);
+  const nextWeek = new Date(today);
   nextWeek.setDate(today.getDate() + 6);
   const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
@@ -128,7 +129,7 @@ export default function EmployeePlanning({ currentSimEmployee, plans, setPlans, 
       endDate: planEndDate,
       status: 'pending',
       plannedDates,
-      createdAt: new Date().toLocaleDateString('th-TH')
+      createdAt: getThailandTodayStr().split('-').reverse().join('/')
     };
 
     setPlans(prev => [newPlan, ...prev]);
