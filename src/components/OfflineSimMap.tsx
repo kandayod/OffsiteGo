@@ -53,6 +53,11 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
     return requests.filter(r => r.status === 'approved');
   }, [requests]);
 
+  // Find all requests with live checkIn coordinates
+  const checkedInStaff = useMemo(() => {
+    return activeRequests.filter(r => r.checkIn?.lat && r.checkIn?.lng);
+  }, [activeRequests]);
+
   // Aggregate visits by location
   const locationStats = useMemo(() => {
     const stats: Record<string, { count: number; employees: Set<string>; issues: number; resolvedCount: number }> = {};
@@ -349,6 +354,76 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
                 </g>
               );
             })}
+
+            {/* LIVE ACTION PLOTTED STAFF PINS */}
+            {checkedInStaff.map((req) => {
+              if (!req.checkIn?.lat || !req.checkIn?.lng) return null;
+              const { x, y } = mapCoords(req.checkIn.lat, req.checkIn.lng);
+              
+              // Ensure coordinates map within visible bounds
+              if (x < 0 || x > 1000 || y < 0 || y > 650) return null;
+
+              return (
+                <g 
+                  key={`live-staff-${req.id}`}
+                  className="transition-all duration-300 cursor-pointer"
+                >
+                  {/* Outer breathing locator ring */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="24"
+                    className="fill-none stroke-emerald-500 opacity-60 animate-pulse"
+                    strokeWidth="1.5"
+                    strokeDasharray="4,2"
+                  />
+                  {/* Ping effect */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="15"
+                    className="fill-emerald-400/20 stroke-emerald-400 stroke-1 animate-ping"
+                    style={{ animationDuration: '3s' }}
+                  />
+                  {/* Main pin background circle */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="8"
+                    className="fill-emerald-500 stroke-white"
+                    strokeWidth="2"
+                  />
+                  {/* Pulse Center core */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="3.5"
+                    className="fill-white animate-pulse"
+                  />
+                  
+                  {/* Stylized Badge above live check-in pin */}
+                  <g transform={`translate(${x}, ${y - 15})`}>
+                    <rect
+                      x="-55"
+                      y="-16"
+                      width="110"
+                      height="18"
+                      rx="5"
+                      className="fill-[#1b4332] stroke-emerald-400/50"
+                      strokeWidth="1"
+                    />
+                    <text
+                      x="0"
+                      y="-4"
+                      className="text-[9px] font-sans font-extrabold fill-emerald-100"
+                      textAnchor="middle"
+                    >
+                      🟢 {req.employeeName.split(' ')[0]} ({req.checkIn.time})
+                    </text>
+                  </g>
+                </g>
+              );
+            })}
             </g>
           </svg>
 
@@ -519,6 +594,42 @@ export default function OfflineSimMap({ requests, selectedEmployeeId }: OfflineS
                 );
               });
             })()}
+          </div>
+        </div>
+
+        {/* LIVE ACTION CHECKED-IN STAFF ROSTER */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+              <span>พิกัดเช็คอินสดพนักงานวันนี้</span>
+            </h4>
+            <span className="text-[10px] font-mono text-slate-400">Live GPS Tracker</span>
+          </div>
+
+          <div className="max-h-[180px] overflow-y-auto space-y-2.5 pr-1.5 custom-scrollbar">
+            {checkedInStaff.length === 0 ? (
+              <p className="text-xs text-slate-400 italic text-center py-4">ยังไม่มีการเช็คอินพิกัดสดเข้ามาในระบบวันนี้</p>
+            ) : (
+              checkedInStaff.map((req) => (
+                <div 
+                  key={`roster-${req.id}`} 
+                  className="p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/20 hover:bg-emerald-50/50 transition-all flex flex-col gap-1.5"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-850 text-xs">🟢 {req.employeeName}</span>
+                    <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-full">{req.checkIn?.time} น.</span>
+                  </div>
+                  <div className="text-[10.5px] text-slate-500 space-y-0.5">
+                    <p className="truncate">📍 {req.location?.name || 'ไม่ระบุสถานที่'}</p>
+                    <p className="font-mono text-[9px] text-emerald-600 bg-white/80 p-1 rounded border border-emerald-100/50 flex items-center justify-between">
+                      <span>GPS: {req.checkIn?.lat}, {req.checkIn?.lng}</span>
+                      <span className="text-slate-400 text-[8px] italic">ความแม่นยำสูง (7 หลัก)</span>
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

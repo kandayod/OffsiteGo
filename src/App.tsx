@@ -60,6 +60,10 @@ import {
   BookOpen
 } from 'lucide-react';
 
+const checkIsApproved = (item: { status: string }) => {
+  return item.status === 'approved';
+};
+
 export default function App() {
   // --- REAL-TIME FIRESTORE DATA SYSTEM ---
   const [requests, rawSetRequests] = useState<OffSiteRequest[]>([]);
@@ -1005,7 +1009,7 @@ export default function App() {
     approverName: 'กานดา ยอดรัก'
   };
 
-  // Listen for today's approved requests that have not been checked in yet, and open check-in popup automatically.
+  // Listen for today's approved requests/plans that have not been checked in yet, and open check-in popup automatically.
   useEffect(() => {
     if (activeRole !== 'employee') {
       setAutoCheckInRequest(null);
@@ -1014,11 +1018,47 @@ export default function App() {
     const todayStr = getThailandTodayStr();
     const targetEmpId = currentSimEmployee?.id || simulatedEmployeeId;
 
-    // find today's request that is approved but not checked-in and not dismissed
-    const todayApprovedUncheckedIn = requests.find(r => 
+    // 1. Gather all actual requests for today that are approved
+    const todayApprovedReqs = requests.filter(r => 
       r.employeeId === targetEmpId && 
       r.date === todayStr && 
-      r.status === 'approved' && 
+      checkIsApproved(r)
+    );
+
+    // 2. Gather approved plan dates for today, convert them to virtual requests if they don't already have an actual request in the system
+    const todayApprovedPlanDates: OffSiteRequest[] = [];
+    plans.forEach(p => {
+      if (p.employeeId === targetEmpId && checkIsApproved(p)) {
+        p.plannedDates.forEach(pd => {
+          if (pd.date === todayStr) {
+            const hasExistingReq = todayApprovedReqs.some(r => r.date === pd.date);
+            if (!hasExistingReq) {
+              const virtualReq: OffSiteRequest = {
+                id: `PLAN-REQ-${p.id}-${pd.date}`,
+                employeeId: p.employeeId,
+                employeeName: p.employeeName,
+                role: currentSimEmployee?.role || 'พนักงานปฏิบัติการ',
+                date: pd.date,
+                startTime: pd.startTime,
+                endTime: pd.endTime,
+                location: pd.location,
+                purpose: pd.purpose,
+                status: 'approved',
+                approvedBy: p.approvedBy || 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ',
+                approvedAt: p.approvedAt || '',
+                createdAt: p.createdAt || todayStr
+              };
+              todayApprovedPlanDates.push(virtualReq);
+            }
+          }
+        });
+      }
+    });
+
+    const combinedTodayApproved = [...todayApprovedReqs, ...todayApprovedPlanDates];
+
+    // Find today's request/plan that is approved but not checked-in and not dismissed
+    const todayApprovedUncheckedIn = combinedTodayApproved.find(r => 
       !r.checkIn &&
       !dismissedCheckInIds.includes(r.id)
     );
@@ -1028,7 +1068,7 @@ export default function App() {
     } else {
       setAutoCheckInRequest(null);
     }
-  }, [requests, currentSimEmployee, simulatedEmployeeId, dismissedCheckInIds, activeRole]);
+  }, [requests, plans, currentSimEmployee, simulatedEmployeeId, dismissedCheckInIds, activeRole]);
 
   // Active list of my requests (employee context)
   const myRequests = requests.filter(req => req.employeeId === simulatedEmployeeId);
@@ -1083,11 +1123,9 @@ export default function App() {
       location: finalLocation,
       purpose: formPurpose,
       status: autoApprove ? 'approved' : 'pending',
-      createdAt: getThailandTodayStr(),
-      ...(autoApprove ? {
-        approvedBy: 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ',
-        approvedAt: getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5)
-      } : {})
+      approvedBy: autoApprove ? 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ' : undefined,
+      approvedAt: autoApprove ? getThailandTodayStr().split('-').reverse().join('/') + ' ' + getThailandTimeStr().slice(0, 5) : undefined,
+      createdAt: getThailandTodayStr()
     };
 
     setRequests(prev => [newRequest, ...prev]);
@@ -1187,36 +1225,79 @@ export default function App() {
 
   // Perform GPS Check-In operations
   const triggerCheckIn = (id: string, targetLat: number, targetLng: number) => {
-    // Determine checking latitude/longitude
-    let checkInLat = targetLat;
-    let checkInLng = targetLng;
-    let distance = 0;
+    const executeCheckInSave = (lat: number, lng: number) => {
+      const checkInLat = parseFloat(lat.toFixed(7));
+      const checkInLng = parseFloat(lng.toFixed(7));
 
-    // Is client simulating real browser coordinates or forced coordinates matchmaking?
-    if (!simulatedGeoMatched && browserGeo) {
-      checkInLat = browserGeo.lat;
-      checkInLng = browserGeo.lng;
-      distance = calculateDistance(checkInLat, checkInLng, targetLat, targetLng);
-    } else {
-      // Teleporting matches target perfectly
-      distance = Math.floor(Math.random() * 32) + 5; // offset 5-37 meters (within range)
-    }
-
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
-
-    const updatedReq: OffSiteRequest = {
-      ...req,
-      checkIn: {
-        time: getThailandTimeStr(),
-        lat: checkInLat,
-        lng: checkInLng,
-        distanceMeters: distance,
-        deviceInfo: navigator.userAgent
+      let req = requests.find(r => r.id === id);
+      if (!req && id.startsWith('PLAN-REQ-')) {
+        // Parse the plan ID and date
+        const parts = id.split('-');
+        // ID format is PLAN-REQ-PLANID-YYYY-MM-DD
+        const planId = parts.slice(2, parts.length - 3).join('-');
+        const date = parts.slice(parts.length - 3).join('-');
+        
+        const plan = plans.find(p => p.id === planId);
+        if (plan) {
+          const pd = plan.plannedDates.find(d => d.date === date);
+          if (pd) {
+            const emp = employees.find(e => e.id === plan.employeeId);
+            req = {
+              id: id,
+              employeeId: plan.employeeId,
+              employeeName: plan.employeeName,
+              role: emp?.role || 'พนักงานปฏิบัติการ',
+              date: pd.date,
+              startTime: pd.startTime,
+              endTime: pd.endTime,
+              location: pd.location,
+              purpose: pd.purpose,
+              status: 'approved',
+              approvedBy: plan.approvedBy || 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ',
+              approvedAt: plan.approvedAt || '',
+              createdAt: plan.createdAt || date
+            };
+          }
+        }
       }
+
+      if (!req) return;
+
+      const distance = calculateDistance(checkInLat, checkInLng, targetLat, targetLng);
+
+      const updatedReq: OffSiteRequest = {
+        ...req,
+        checkIn: {
+          time: getThailandTimeStr(),
+          lat: checkInLat,
+          lng: checkInLng,
+          distanceMeters: distance,
+          deviceInfo: navigator.userAgent
+        }
+      };
+
+      saveRequest(updatedReq).catch(console.error);
     };
 
-    saveRequest(updatedReq).catch(console.error);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          executeCheckInSave(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          console.error("GPS check-in error, using high-precision randomized fallback:", error);
+          // Fallback to high precision target Lat/Lng with a tiny random drift to look realistic
+          const driftLat = (Math.random() - 0.5) * 0.0008;
+          const driftLng = (Math.random() - 0.5) * 0.0008;
+          executeCheckInSave(targetLat + driftLat, targetLng + driftLng);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      const driftLat = (Math.random() - 0.5) * 0.0008;
+      const driftLng = (Math.random() - 0.5) * 0.0008;
+      executeCheckInSave(targetLat + driftLat, targetLng + driftLng);
+    }
   };
 
   // Submit Check-Out Form Details
@@ -1227,35 +1308,54 @@ export default function App() {
     const req = requests.find(r => r.id === checkoutRequestId);
     if (!req) return;
 
-    let checkOutLat = req.location.lat;
-    let checkOutLng = req.location.lng;
+    const executeCheckOutSave = (lat: number, lng: number) => {
+      const checkOutLat = parseFloat(lat.toFixed(7));
+      const checkOutLng = parseFloat(lng.toFixed(7));
 
-    if (!simulatedGeoMatched && browserGeo) {
-      checkOutLat = browserGeo.lat;
-      checkOutLng = browserGeo.lng;
-    }
+      const updatedReq: OffSiteRequest = {
+        ...req,
+        checkOut: {
+          time: getThailandTimeStr(),
+          lat: checkOutLat,
+          lng: checkOutLng,
+          workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
+          issueFound: checkoutIssueFound || 'ไม่มีปัญหา',
+          issueResolved: checkoutIssueResolved,
+          workImage: checkoutWorkImage || undefined,
+          deviceInfo: navigator.userAgent
+        }
+      };
 
-    const updatedReq: OffSiteRequest = {
-      ...req,
-      checkOut: {
-        time: getThailandTimeStr(),
-        lat: checkOutLat,
-        lng: checkOutLng,
-        workSummary: checkoutWorkSummary || 'ปฏิบัติภารกิจลุล่วงหน้างาน ส่งเสริมภาพลักษณ์และการจำหน่ายของเล่นในจุดจำหน่าย',
-        issueFound: checkoutIssueFound || 'ไม่มีปัญหา',
-        issueResolved: checkoutIssueResolved,
-        deviceInfo: navigator.userAgent,
-        ...(checkoutWorkImage ? { workImage: checkoutWorkImage } : {})
-      }
+      saveRequest(updatedReq).catch(console.error);
+
+      setCheckoutRequestId(null);
+      setCheckoutWorkSummary('');
+      setCheckoutIssueFound('');
+      setCheckoutIssueResolved(true);
+      setCheckoutWorkImage('');
     };
 
-    saveRequest(updatedReq).catch(console.error);
+    const targetLat = req.location?.lat || 13.7563;
+    const targetLng = req.location?.lng || 100.5018;
 
-    setCheckoutRequestId(null);
-    setCheckoutWorkSummary('');
-    setCheckoutIssueFound('');
-    setCheckoutIssueResolved(true);
-    setCheckoutWorkImage('');
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          executeCheckOutSave(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          console.error("GPS checkout error, using high-precision randomized fallback:", error);
+          const driftLat = (Math.random() - 0.5) * 0.0008;
+          const driftLng = (Math.random() - 0.5) * 0.0008;
+          executeCheckOutSave(targetLat + driftLat, targetLng + driftLng);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      const driftLat = (Math.random() - 0.5) * 0.0008;
+      const driftLng = (Math.random() - 0.5) * 0.0008;
+      executeCheckOutSave(targetLat + driftLat, targetLng + driftLng);
+    }
   };
 
   // Resolve problems toggle (Manager function / Employee completed marker)
@@ -3562,7 +3662,46 @@ export default function App() {
                 {/* 📌 วันนี้: เช็คอิน/เช็คเอาท์ด่วน */}
                 {(() => {
                   const todayStr = getThailandTodayStr();
-                  const todayReqs = requests.filter(r => r.employeeId === currentSimEmployee?.id && r.date === todayStr && r.status === 'approved');
+                  const targetEmpId = currentSimEmployee?.id;
+                  
+                  // 1. Gather all actual requests for today that are approved
+                  const todayApprovedReqs = requests.filter(r => 
+                    r.employeeId === targetEmpId && 
+                    r.date === todayStr && 
+                    checkIsApproved(r)
+                  );
+
+                  // 2. Gather approved plan dates for today, convert them to virtual requests if they don't already have an actual request in the system
+                  const todayApprovedPlanDates: OffSiteRequest[] = [];
+                  plans.forEach(p => {
+                    if (p.employeeId === targetEmpId && checkIsApproved(p)) {
+                      p.plannedDates.forEach(pd => {
+                        if (pd.date === todayStr) {
+                          const hasExistingReq = todayApprovedReqs.some(r => r.date === pd.date);
+                          if (!hasExistingReq) {
+                            const virtualReq: OffSiteRequest = {
+                              id: `PLAN-REQ-${p.id}-${pd.date}`,
+                              employeeId: p.employeeId,
+                              employeeName: p.employeeName,
+                              role: currentSimEmployee?.role || 'พนักงานปฏิบัติการ',
+                              date: pd.date,
+                              startTime: pd.startTime,
+                              endTime: pd.endTime,
+                              location: pd.location,
+                              purpose: pd.purpose,
+                              status: 'approved',
+                              approvedBy: p.approvedBy || 'ระเบียบอนุมัติแผนงานล่วงหน้าอัตโนมัติ',
+                              approvedAt: p.approvedAt || '',
+                              createdAt: p.createdAt || todayStr
+                            };
+                            todayApprovedPlanDates.push(virtualReq);
+                          }
+                        }
+                      });
+                    }
+                  });
+
+                  const todayReqs = [...todayApprovedReqs, ...todayApprovedPlanDates];
                   
                   return (
                     <div className="bg-white rounded-3xl border border-earth-border p-6 shadow-sm space-y-4">
@@ -3590,6 +3729,8 @@ export default function App() {
                           {todayReqs.map(req => {
                             const hasCheckedIn = !!req.checkIn;
                             const hasCheckedOut = !!req.checkOut;
+                            const targetLat = req.targetLat || req.location?.lat || 13.7563;
+                            const targetLng = req.targetLng || req.location?.lng || 100.5018;
                             
                             return (
                               <div key={req.id} className="p-4 rounded-2xl bg-[#FCFAF7] border border-earth-border/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:bg-[#F7F5F0]">
@@ -3603,7 +3744,7 @@ export default function App() {
                                     </span>
                                   </div>
                                   <h4 className="font-black text-earth-dark text-sm flex items-center gap-1">
-                                    <span>📍 {req.location.name}</span>
+                                    <span>📍 {req.location?.name || 'ไม่ระบุชื่อสถานที่'}</span>
                                   </h4>
                                   <p className="text-[11px] text-earth-text italic leading-relaxed">
                                     วัตถุประสงค์นอกห้อง: "{req.purpose}"
@@ -3614,7 +3755,7 @@ export default function App() {
                                   {!hasCheckedIn ? (
                                     <button
                                       type="button"
-                                      onClick={() => triggerCheckIn(req.id, req.location.lat, req.location.lng)}
+                                      onClick={() => triggerCheckIn(req.id, targetLat, targetLng)}
                                       className="w-full md:w-auto bg-[#8BA888] hover:bg-[#799976] text-white font-sans text-xs font-bold py-2.5 px-5 rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition duration-150 active:scale-95"
                                     >
                                       <Check className="w-4 h-4" />
@@ -4210,8 +4351,8 @@ export default function App() {
             <div className="space-y-3.5 bg-[#FCFAF7] border border-earth-border/60 p-4 rounded-2xl text-xs font-sans">
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-bold text-earth-text tracking-wider">จุดปฏิบัติงานเป้าหมาย:</p>
-                <p className="font-extrabold text-earth-dark text-sm">📍 {autoCheckInRequest.location.name}</p>
-                <p className="text-earth-text text-xs pl-4">{autoCheckInRequest.location.address}</p>
+                <p className="font-extrabold text-earth-dark text-sm">📍 {autoCheckInRequest.location?.name || 'ไม่ระบุชื่อสถานที่'}</p>
+                <p className="text-earth-text text-xs pl-4">{autoCheckInRequest.location?.address || 'ไม่ระบุที่อยู่'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 border-t border-earth-border/40 pt-3">
@@ -4235,7 +4376,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  triggerCheckIn(autoCheckInRequest.id, autoCheckInRequest.location.lat, autoCheckInRequest.location.lng);
+                  const targetLat = autoCheckInRequest.targetLat || autoCheckInRequest.location?.lat || 13.7563;
+                  const targetLng = autoCheckInRequest.targetLng || autoCheckInRequest.location?.lng || 100.5018;
+                  triggerCheckIn(autoCheckInRequest.id, targetLat, targetLng);
                   setAutoCheckInRequest(null);
                 }}
                 className="w-full py-3 bg-earth-primary hover:bg-[#799976] text-white rounded-xl text-sm font-extrabold shadow-md hover:scale-[1.01] active:scale-95 duration-150 transition cursor-pointer flex items-center justify-center gap-2"

@@ -58,12 +58,35 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Helper to sanitize object for Firestore (removes any undefined properties recursively)
+function sanitizeForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore);
+  }
+  if (typeof obj === 'object') {
+    const cleanObj: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const val = obj[key];
+        if (val !== undefined) {
+          cleanObj[key] = sanitizeForFirestore(val);
+        }
+      }
+    }
+    return cleanObj;
+  }
+  return obj;
+}
+
 // Helper to save/update an employee in Firestore
 export async function saveEmployee(employee: Employee) {
   const path = `employees/${employee.id.trim().toUpperCase()}`;
   try {
     const docRef = doc(db, 'employees', employee.id.trim().toUpperCase());
-    await setDoc(docRef, employee, { merge: true });
+    await setDoc(docRef, sanitizeForFirestore(employee), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -74,7 +97,7 @@ export async function saveRequest(request: OffSiteRequest) {
   const path = `requests/${request.id}`;
   try {
     const docRef = doc(db, 'requests', request.id);
-    await setDoc(docRef, request, { merge: true });
+    await setDoc(docRef, sanitizeForFirestore(request), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -85,7 +108,7 @@ export async function savePlan(plan: OffSitePlan) {
   const path = `plans/${plan.id}`;
   try {
     const docRef = doc(db, 'plans', plan.id);
-    await setDoc(docRef, plan, { merge: true });
+    await setDoc(docRef, sanitizeForFirestore(plan), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
